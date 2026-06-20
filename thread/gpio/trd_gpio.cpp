@@ -13,7 +13,7 @@
 #include "thread.hpp"
 #include "output.hpp"
 #include "timer.hpp"
-#include "input.hpp"
+// #include "input.hpp"
 #include "zephyr/sys/printk.h"
 
 namespace thread::output {
