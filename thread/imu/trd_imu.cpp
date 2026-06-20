@@ -12,6 +12,8 @@
 #include "trd_imu.hpp"
 #include "imu.hpp"
 
+#pragma message "Compiling Thread/Imu"
+
 namespace thread::imu {
 
 static ::imu::ImuManager imu_ {};

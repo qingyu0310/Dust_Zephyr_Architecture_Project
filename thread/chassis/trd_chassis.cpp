@@ -60,6 +60,8 @@
 #include "zephyr/zbus/zbus.h"
 #include "math.h"
 
+#pragma message "Compiling Thread/Chassis"
+
 namespace {
 
 constexpr float kPi   = 3.1415926535f;

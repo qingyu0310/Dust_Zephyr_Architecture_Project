@@ -16,6 +16,8 @@
 // #include "input.hpp"
 #include "zephyr/sys/printk.h"
 
+#pragma message "Compiling Thread/Gpio"
+
 namespace thread::output {
 
 static Thread<2048> thread_{};

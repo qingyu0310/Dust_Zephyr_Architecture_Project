@@ -20,6 +20,8 @@
 #include "zephyr/zbus/zbus.h"
 #include "timer.hpp"
 
+#pragma message "Compiling Thread/Gimbal"
+
 namespace thread::gimbal {
 
 using namespace instance::gimbal;

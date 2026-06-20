@@ -15,6 +15,8 @@
 #include "usb.hpp"
 #include <zephyr/devicetree.h>
 
+#pragma message "Compiling Thread/Pc"
+
 namespace thread::pc {
 
 static Thread<2048> thread_ {};

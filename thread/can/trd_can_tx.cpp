@@ -18,6 +18,8 @@
 #include "can.hpp"
 #include "Irq_handlers.h"
 
+#pragma message "Compiling Thread/Can"
+
 namespace thread::can {
 
 // k_msgq vs zbus：zbus 多个发布者共用一个 channel 会互相覆盖；
