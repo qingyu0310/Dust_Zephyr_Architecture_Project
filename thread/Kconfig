@@ -19,7 +19,7 @@ config TRD_GPIO
 
 config TRD_CHASSIS
     bool "Chassis control thread"
-    default n
+    default y
     select MOD_CTL_POWER
     select MOD_DEV_MOTOR_DJI
     select TPC_TO_CAN_TX
@@ -30,7 +30,7 @@ config TRD_CHASSIS
 config USE_POWERMETER
     bool "Power meter"
     depends on TRD_CHASSIS
-    default n
+    default y
     select MOD_DEV_POWERMETER
     help
       Enable power meter support for chassis control.
@@ -99,7 +99,7 @@ config TRD_PC
 config USER_TEST_ADD
     bool "User test add config"
     default n
-    select COM_RS485
+    select ID_RLS
     help
       Temporary user test switch.
 

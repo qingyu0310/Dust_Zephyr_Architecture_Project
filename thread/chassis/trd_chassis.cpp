@@ -50,6 +50,7 @@
  *
  * @copyright Copyright (c) 2026
  */
+#pragma message "Compiling Thread/Chassis"
 
 #include "trd_chassis.hpp"
 #include "remote_to.hpp"
@@ -59,8 +60,6 @@
 #include "pid.hpp"
 #include "zephyr/zbus/zbus.h"
 #include "math.h"
-
-#pragma message "Compiling Thread/Chassis"
 
 namespace {
 
@@ -108,8 +107,8 @@ static constexpr int8_t kSteerSign[N_Wheel] = {-1, -1};                 // 舵�
 static constexpr int8_t kDriveSign[N_Wheel] = { 1, -1};                 // 行进
 
 // 功率控制器
-static alg::power_ctrl::PowerCtrl SteerPwrCtrl {};                              // 转向组
-static alg::power_ctrl::PowerCtrl DrivePwrCtrl {};                              // 行进组
+static alg::power_ctrl::PowerCtrl<N_Wheel> SteerPwrCtrl {};                     // 转向组
+static alg::power_ctrl::PowerCtrl<N_Wheel> DrivePwrCtrl {};                     // 行进组
 
 // 运动学中间变量
 static struct { float angle; float velocity; } g_wh_target[N_Wheel] {};
@@ -207,12 +206,12 @@ static void ControlCalculate()
             const auto  snap = chassis_wheel[wi].steer_motor.ReadAll();
             const float chassis_angle = NormalizeAngle(kSteerSign[wi] * snap.angle);
 
-            wheel_pid[wi].steer_angle.SetTarget(g_steer_target[wi]);
-            wheel_pid[wi].steer_angle.SetNow(chassis_angle);
-            const float torque_ref  = wheel_pid[wi].steer_angle. Calc();
-            const float current_ref = wheel_pid[wi].steer_torque.Calc(torque_ref, snap.torque) / kTorqueK;
+            wheel_alg[wi].steer_angle.SetTarget(g_steer_target[wi]);
+            wheel_alg[wi].steer_angle.SetNow(chassis_angle);
+            const float torque_ref  = wheel_alg[wi].steer_angle. Calc();
+            const float current_ref = wheel_alg[wi].steer_torque.Calc(torque_ref, snap.torque) / kTorqueK;
             SteerPwrCtrl.SetTarget(wi, current_ref);
-            SteerPwrCtrl.SetMotorData(wi, snap.torque, snap.omega, wheel_pid[wi].steer_angle.GetError());
+            SteerPwrCtrl.SetMotorData(wi, snap.torque, snap.omega, wheel_alg[wi].steer_angle.GetError());
         }
 
         // 行进：速度 → 力矩
@@ -220,12 +219,12 @@ static void ControlCalculate()
             const auto  snap = chassis_wheel[wi].drive_motor.ReadAll();
             const float chassis_velocity = g_wh_target[wi].velocity * g_k_factor[wi];
 
-            wheel_pid[wi].drive_velocity.SetTarget(chassis_velocity);
-            wheel_pid[wi].drive_velocity.SetNow(snap.velocity);
-            const float torque_ref  = wheel_pid[wi].drive_velocity.Calc();
-            const float current_ref = wheel_pid[wi].drive_torque.  Calc(torque_ref, snap.torque) / kTorqueK;
+            wheel_alg[wi].drive_velocity.SetTarget(chassis_velocity);
+            wheel_alg[wi].drive_velocity.SetNow(snap.velocity);
+            const float torque_ref  = wheel_alg[wi].drive_velocity.Calc();
+            const float current_ref = wheel_alg[wi].drive_torque.  Calc(torque_ref, snap.torque) / kTorqueK;
             DrivePwrCtrl.SetTarget(wi, current_ref);
-            DrivePwrCtrl.SetMotorData(wi, snap.torque, snap.omega, wheel_pid[wi].drive_velocity.GetError());
+            DrivePwrCtrl.SetMotorData(wi, snap.torque, snap.omega, wheel_alg[wi].drive_velocity.GetError());
         }
     }
 }
@@ -241,8 +240,10 @@ static void ControlCalculate()
 static void PowerAlloc()
 {
     #if CONFIG_USE_POWERMETER
-    SteerPwrCtrl.SetMeasuredPower(SteerPwrMeter.GetPower());
-    DrivePwrCtrl.SetMeasuredPower(DrivePwrMeter.GetPower());
+    {
+        SteerPwrCtrl.SetMeasuredPower(SteerPwrMeter.GetPower());
+        DrivePwrCtrl.SetMeasuredPower(DrivePwrMeter.GetPower());
+    }
     #endif
     SteerPwrCtrl.Predict();
     DrivePwrCtrl.Predict();
@@ -312,8 +313,10 @@ void thread_init()
 {
     // 功率计初始化
     #if CONFIG_USE_POWERMETER
-    SteerPwrMeter.Init(KSteerPwrMeterId);
-    DrivePwrMeter.Init(KDrivePwrMeterId);
+    {
+        SteerPwrMeter.Init(KSteerPwrMeterId);
+        DrivePwrMeter.Init(KDrivePwrMeterId);
+    }
     #endif
 
     // 功率预测模型初始化
@@ -324,11 +327,10 @@ void thread_init()
         constexpr float k2 = 5.171939e-03f;
         constexpr float k3 = 3.0f;
 
-        alg::power_ctrl::PowerCtrl::Config cfg{};
+        alg::power_ctrl::PowerCtrl<N_Wheel>::Config cfg{};
         cfg.k1Init      = k1;
         cfg.k2Init      = k2;
         cfg.torqueK     = kTorqueK;
-        cfg.motorCount  = N_Wheel;
         cfg.k3          = k3;
         cfg.errUpper    = 50.0f;
         cfg.errLower    = 0.01f;
@@ -344,11 +346,10 @@ void thread_init()
         constexpr float k2 = 5.171939e-03f;
         constexpr float k3 = 3.5f;
 
-        alg::power_ctrl::PowerCtrl::Config cfg{};
+        alg::power_ctrl::PowerCtrl<N_Wheel>::Config cfg{};
         cfg.k1Init      = k1;
         cfg.k2Init      = k2;
         cfg.torqueK     = kTorqueK;
-        cfg.motorCount  = N_Wheel;
         cfg.k3          = k3;
         cfg.errUpper    = 500.0f;
         cfg.errLower    = 0.001f;
@@ -382,8 +383,8 @@ void thread_init()
             torque_cfg.kd = 0.0f;
 
             chassis_wheel[wi].steer_motor.Init(motor_cfg);
-            wheel_pid[wi].steer_angle    .Init(angle_cfg);
-            wheel_pid[wi].steer_torque   .Init(torque_cfg);
+            wheel_alg[wi].steer_angle    .Init(angle_cfg);
+            wheel_alg[wi].steer_torque   .Init(torque_cfg);
         }
 
         // 行进组
@@ -407,8 +408,8 @@ void thread_init()
             torque_cfg.kd = 0.0f;
 
             chassis_wheel[wi].drive_motor.Init(motor_cfg);
-            wheel_pid[wi].drive_velocity .Init(speed_cfg);
-            wheel_pid[wi].drive_torque   .Init(torque_cfg);
+            wheel_alg[wi].drive_velocity .Init(speed_cfg);
+            wheel_alg[wi].drive_torque   .Init(torque_cfg);
         }
     }
 }

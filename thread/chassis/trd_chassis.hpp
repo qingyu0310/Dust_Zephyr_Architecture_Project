@@ -24,8 +24,8 @@ namespace thread::chassis {
     void thread_start(uint8_t prio = 5);
 };
 
-namespace instance::chassis {
-
+namespace instance::chassis 
+{
     // 功率计 CAN 接收 ID
     #if CONFIG_USE_POWERMETER
     constexpr uint16_t KSteerPwrMeterId = 0x01;
@@ -50,14 +50,14 @@ namespace instance::chassis {
         DjiC6xx drive_motor {};
     };
 
-    // 单轮 PID：角度→力矩 / 速度→力矩 串联
-    struct WheelPid {
+    // 单轮算法状态：PID + 后续扩展
+    struct WheelAlg {
         alg::pid::Pid steer_angle    {};
         alg::pid::Pid steer_torque   {};
         alg::pid::Pid drive_velocity {};
         alg::pid::Pid drive_torque   {};
     };
 
-    inline WheelPid    wheel_pid[N_Wheel]     {};
+    inline WheelAlg    wheel_alg[N_Wheel]     {};
     inline WheelModule chassis_wheel[N_Wheel] {}; 
 }
