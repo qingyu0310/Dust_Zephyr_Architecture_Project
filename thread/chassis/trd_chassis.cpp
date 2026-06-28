@@ -50,6 +50,7 @@
  *
  * @copyright Copyright (c) 2026
  */
+
 #pragma message "Compiling Thread/Chassis"
 
 #include "trd_chassis.hpp"

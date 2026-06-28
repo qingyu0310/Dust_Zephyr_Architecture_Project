@@ -9,6 +9,8 @@
  *
  */
 
+#pragma message "Compiling Thread/Can"
+
 #include "trd_can_tx.hpp"
 #include "to_can_tx.hpp"
 #include "thread.hpp"
@@ -17,8 +19,6 @@
 #include <zephyr/sys/byteorder.h>
 #include "can.hpp"
 #include "Irq_handlers.h"
-
-#pragma message "Compiling Thread/Can"
 
 namespace thread::can {
 

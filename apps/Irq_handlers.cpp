@@ -23,6 +23,7 @@ void user_can1_rx_callback(struct can_frame &frame, void *)
     switch (frame.id)
     {
     #ifdef CONFIG_TRD_CHASSIS
+    {
         using namespace instance::chassis;
 
         case kSteerCanId[0]:
@@ -49,15 +50,17 @@ void user_can1_rx_callback(struct can_frame &frame, void *)
             DrivePwrMeter.CanCpltRxCallback(frame.data);
             break;
         #endif
+    }
     #endif
 
     #ifdef CONFIG_TRD_GIMBAL
+    {
         using namespace instance::gimbal;
 
         case kBYawMasterId:
             big_yaw_.motor.CanCpltRxCallback(frame.data);
             break;
-            
+    } 
     #endif
             
         default:

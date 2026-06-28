@@ -9,6 +9,8 @@
  *
  */
 
+#pragma message "Compiling Thread/Gpio"
+
 #include "trd_gpio.hpp"
 #include "thread.hpp"
 #include "output.hpp"
@@ -16,15 +18,11 @@
 // #include "input.hpp"
 #include "zephyr/sys/printk.h"
 
-#pragma message "Compiling Thread/Gpio"
-
 namespace thread::output {
 
 static Thread<2048> thread_{};
 
 static Output led_alert{};
-
-volatile static uint8_t test_counter = 0;
 
 static void Task(void*, void*, void*)
 {
@@ -38,8 +36,7 @@ static void Task(void*, void*, void*)
         timer.Update();
 
         timer.Clock(([](){
-            test_counter++;
-            printk("%d\n", test_counter);
+            // printk("tick\n");
         }));
 
         const int64_t elapsed = k_uptime_get() - tick_start;

@@ -35,6 +35,10 @@
 #include "trd_tflm.hpp"
 #endif
 
+#ifdef CONFIG_TRD_TEST
+#include "trd_test.hpp"
+#endif
+
 #ifdef CONFIG_TRD_PC
 #include "trd_pc.hpp"
 #endif
@@ -85,6 +89,12 @@ void System_Modules_Init()
 }
 #endif
 
+#ifdef CONFIG_TRD_TEST
+{
+    test    ::thread_init();
+}
+#endif
+
 #ifdef CONFIG_TRD_PC
 {
     pc      ::thread_init();
@@ -129,6 +139,12 @@ void System_Thread_Start()
 #ifdef CONFIG_TRD_TFLM
 {
     // ml      ::thread_start(6);
+}
+#endif
+
+#ifdef CONFIG_TRD_TEST
+{
+    test    ::thread_start(6);
 }
 #endif
 

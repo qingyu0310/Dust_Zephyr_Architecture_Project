@@ -9,10 +9,10 @@
  *
  */
 
+#pragma message "Compiling Thread/Imu"
+
 #include "trd_imu.hpp"
 #include "imu.hpp"
-
-#pragma message "Compiling Thread/Imu"
 
 namespace thread::imu {
 
@@ -20,7 +20,7 @@ static ::imu::ImuManager imu_ {};
 
 void thread_init()
 {
-    imu_.Init(true);
+    imu_.Init(false);
 }
 
 void thread_start(uint8_t prio)

@@ -9,13 +9,13 @@
  *
  */
 
+#pragma message "Compiling Thread/Pc"
+
 #include "trd_pc.hpp"
 #include "thread.hpp"
 #include <zephyr/kernel.h>
 #include "usb.hpp"
 #include <zephyr/devicetree.h>
-
-#pragma message "Compiling Thread/Pc"
 
 namespace thread::pc {
 

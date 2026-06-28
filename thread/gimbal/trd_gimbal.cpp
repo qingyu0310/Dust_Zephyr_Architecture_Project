@@ -9,6 +9,8 @@
  * 
  */
 
+#pragma message "Compiling Thread/Gimbal"
+
 #include "trd_gimbal.hpp"
 #include "dm.hpp"
 #include "pid.hpp"
@@ -19,8 +21,6 @@
 #include "zephyr/sys/printk.h"
 #include "zephyr/zbus/zbus.h"
 #include "timer.hpp"
-
-#pragma message "Compiling Thread/Gimbal"
 
 namespace thread::gimbal {
 

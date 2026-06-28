@@ -9,12 +9,12 @@
  *
  */
 
+#pragma message "Compiling Thread/Remote"
+
 #include "trd_remote.hpp"
 #include "remote.hpp"
 #include "uart.hpp"
 #include <zephyr/logging/log.h>
-
-#pragma message "Compiling Thread/Remote"
 
 LOG_MODULE_REGISTER(remote, LOG_LEVEL_INF);
 
