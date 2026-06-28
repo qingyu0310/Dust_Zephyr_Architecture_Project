@@ -20,7 +20,7 @@ static ::imu::ImuManager imu_ {};
 
 void thread_init()
 {
-    imu_.Init(false);
+    imu_.Init(true);
 }
 
 void thread_start(uint8_t prio)
