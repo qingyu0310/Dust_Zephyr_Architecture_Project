@@ -62,7 +62,7 @@
 };
 
 &uart3 {
-    current-speed = <115200>;
+    current-speed = <921600>;
     pinctrl-0 = <&pinmux_uart3>;
     pinctrl-names = "default";
     dmas = <&hdma 4 0x1A>, <&hdma 5 0x1B>;

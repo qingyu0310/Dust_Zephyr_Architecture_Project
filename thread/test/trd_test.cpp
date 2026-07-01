@@ -1,68 +1,121 @@
 /**
  * @file trd_test.cpp
  * @author qingyu
- * @brief Kalman filter test thread
+ * @brief UART 接收性能基准测试
  * @version 0.1
- * @date 2026-06-28
+ * @date 2026-07-01
  */
 
 #pragma message "Compiling Thread/Test"
 
 #include "trd_test.hpp"
 #include "thread.hpp"
-#include <kalman.hpp>
+#include "uart.hpp"
 #include <zephyr/kernel.h>
-#include <zephyr/sys/printk.h>
+#include <zephyr/logging/log.h>
+
+LOG_MODULE_REGISTER(test, LOG_LEVEL_INF);
 
 namespace thread::test {
 
-static Thread<4096> thread_{};
+static Thread<4096> thread_ {};
+
+static UartDma uart3 {};
+static k_sem   uart3_sem {};
+
+static struct {
+    uint32_t total_bytes;       // 总接收字节数
+    uint32_t read_count;        // Read() 调用次数
+    uint32_t min_per_read;      // 单次 Read 最小字节
+    uint32_t max_per_read;      // 单次 Read 最大字节
+    uint32_t read_cycles;       // Read() 累计 CPU 周期数
+    int64_t  start_ms;          // 测试起始时间戳
+    bool     started;           // 是否已开始接收
+} g_stats = {};
+
+static void reset_stats()
+{
+    g_stats = {};
+    g_stats.min_per_read = UINT32_MAX;
+}
+
+static void report_stats()
+{
+    if (g_stats.read_count == 0) return;
+
+    int64_t elapsed_ms = k_uptime_delta(&g_stats.start_ms);
+    if (elapsed_ms <= 0) elapsed_ms = 1;
+
+    uint32_t avg_per_read = g_stats.total_bytes / g_stats.read_count;
+    uint32_t avg_read_cyc = g_stats.read_cycles / g_stats.read_count;
+
+    // 通过串口打印报告，Python 脚本通过 [BENCH] 标记解析
+    printk("[BENCH] bytes=%u reads=%u min=%u max=%u avg=%u "
+           "rd_cyc=%u avg_cyc=%u time=%lldms bw=%uB/s\n",
+           g_stats.total_bytes,
+           g_stats.read_count,
+           g_stats.min_per_read,
+           g_stats.max_per_read,
+           avg_per_read,
+           g_stats.read_cycles,
+           avg_read_cyc,
+           (long long)elapsed_ms,
+           (uint32_t)(g_stats.total_bytes * 1000 / elapsed_ms));
+}
 
 static void Task(void*, void*, void*)
 {
-    // 弹簧阻尼系统 Kalman 测试
-    constexpr float k  = 10.0f;
-    constexpr float c  = 0.5f;
-    constexpr float dt = 0.01f;
-
-    alg::filter::Kalman<2, 1> kf;
-
-    Eigen::Matrix2f A;
-    A << 1.0f, dt, -k * dt, 1.0f - c * dt;
-
-    Eigen::RowVector2f H;
-    H << 1.0f, 0.0f;
-
-    kf.Init(A, H,
-            Eigen::Matrix2f::Identity() * 0.01f,
-            Eigen::Matrix<float, 1, 1>::Identity() * 0.1f);
-
-    uint32_t cnt = 0;
     for (;;)
     {
-        // 模拟位置测量
-        Eigen::Matrix<float, 1, 1> z;
-        z(0) = 0.0f;
+        int ret = k_sem_take(&uart3_sem, K_MSEC(200));
 
-        kf.SetZ(z);
+        if (ret == 0)
+        {
+            uint8_t buf[256];
+            uint32_t t0 = k_cycle_get_32();
+            uint16_t len = uart3.Read(buf, sizeof(buf));
+            uint32_t t1 = k_cycle_get_32();
 
-        uint32_t t0 = k_cycle_get_32();
-        kf.Predict();
-        kf.Update();
-        uint32_t t1 = k_cycle_get_32();
+            if (len > 0)
+            {
+                if (!g_stats.started) {
+                    g_stats.started = true;
+                    g_stats.start_ms = k_uptime_get();
+                }
 
-        cnt++;
-        if (cnt % 1000 == 0) {
-            uint64_t ns = k_cyc_to_ns_floor64(t1 - t0);
-            printk("[KF] Kalman<2,1> predict+update: %.3f ms\n", (double)ns / 1000000.0);
+                g_stats.total_bytes  += len;
+                g_stats.read_count++;
+                g_stats.read_cycles  += (t1 - t0);
+                if (len < g_stats.min_per_read) g_stats.min_per_read = len;
+                if (len > g_stats.max_per_read) g_stats.max_per_read = len;
+            }
         }
-
-        k_msleep(1);
+        else
+        {
+            // 200ms 无数据 → 上报当前测试结果
+            if (g_stats.started) {
+                report_stats();
+                reset_stats();
+            }
+        }
     }
 }
 
 void thread_init()
 {
+    k_sem_init(&uart3_sem, 0, 1);
+
+    RxStream::Config cfg {};
+    cfg.buf_size   = 256;
+    cfg.rx_timeout = 1000;
+
+    if (!uart3.Init(DEVICE_DT_GET(DT_NODELABEL(uart3)), cfg)) {
+        LOG_ERR("uart3 init failed");
+        return;
+    }
+
+    uart3.SetNotify(&uart3_sem);
+    LOG_INF("uart3 ready");
 }
 
 void thread_start(uint8_t prio)

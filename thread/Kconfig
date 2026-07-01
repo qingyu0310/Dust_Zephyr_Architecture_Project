@@ -70,7 +70,7 @@ config TRD_REMOTE
 
 config TRD_IMU
     bool "IMU thread"
-    default y
+    default n
     select MOD_DEV_IMU
     select TPC_IMU_TO
     help
@@ -98,9 +98,8 @@ config TRD_PC
 
 config TRD_TEST
     bool "User test add config"
-    default n
-    select FLT_KALMAN
-    select FLT_KALMAN_EKF
+    default y
+    select COM_UART_DMA
     help
       Temporary user test switch.
 
