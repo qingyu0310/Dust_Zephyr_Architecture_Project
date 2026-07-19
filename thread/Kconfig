@@ -5,7 +5,7 @@ rsource "../../algorithm/Kconfig"
 rsource "../../modules/Kconfig"
 rsource "../../topic/Kconfig"
 
-######################################################
+# ============================================================================
 
 config TRD_GPIO
     bool "GPIO thread task"
@@ -15,7 +15,7 @@ config TRD_GPIO
     help
       Enable the GPIO/output indicator thread.
 
-######################################################
+# ============================================================================
 
 config TRD_CHASSIS
     bool "Chassis control thread"
@@ -35,7 +35,7 @@ config USE_POWERMETER
     help
       Enable power meter support for chassis control.
 
-######################################################
+# ============================================================================
 
 config TRD_GIMBAL
     bool "Gimbal control thread"
@@ -47,7 +47,7 @@ config TRD_GIMBAL
     help
       Enable gimbal control thread.
 
-######################################################
+# ============================================================================
 
 config TRD_CAN_TX
     bool "CAN TX thread"
@@ -57,7 +57,7 @@ config TRD_CAN_TX
     help
       Enable CAN TX thread.
 
-######################################################
+# ============================================================================
 
 config TRD_REMOTE
     bool "Remote thread"
@@ -66,17 +66,25 @@ config TRD_REMOTE
     help
       Enable remote receiver thread.
 
-######################################################
+# ============================================================================
 
 config TRD_IMU
     bool "IMU thread"
-    default n
+    default y
     select MOD_DEV_IMU
     select TPC_IMU_TO
     help
       Enable IMU acquisition, heater control, and publish thread.
 
-######################################################
+config IMU_IDENTIFICATION
+    bool "IMU heater identification"
+    default y
+    depends on TRD_IMU
+    select MOD_DEV_IMU_IDENT
+    help
+      IMU heater open-loop identification, replaces PID closed-loop control.
+
+# ============================================================================
 
 config TRD_TFLM
     bool "TFLM inference thread"
@@ -85,7 +93,7 @@ config TRD_TFLM
     help
       Enable TFLM inference test thread.
 
-######################################################
+# ============================================================================
 
 config TRD_PC
     bool "PC communication thread"
@@ -94,13 +102,13 @@ config TRD_PC
     help
       PC communication thread (USB CDC ACM loopback test).
 
-######################################################
+# ============================================================================
 
 config TRD_TEST
     bool "User test add config"
-    default y
+    default n
     select COM_UART_DMA
     help
       Temporary user test switch.
 
-######################################################
+# ============================================================================

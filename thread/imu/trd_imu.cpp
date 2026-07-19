@@ -20,7 +20,11 @@ static ::imu::ImuManager imu_ {};
 
 void thread_init()
 {
-    imu_.Init(true);
+#ifdef CONFIG_IMU_IDENTIFICATION
+    imu_.Init(::imu::ImuStartMode::OpenIdent);
+#else
+    imu_.Init(::imu::ImuStartMode::Normal);
+#endif
 }
 
 void thread_start(uint8_t prio)
