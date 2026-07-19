@@ -11,29 +11,28 @@
 
 #pragma message "Compiling Thread/Imu"
 
-#include "trd_imu.hpp"
 #include "imu.hpp"
+#include "Init_entry.hpp"
 
 namespace thread::imu {
 
 static ::imu::ImuManager imu_ {};
 
-void thread_init()
+bool thread_init()
 {
 #ifdef CONFIG_IMU_IDENTIFICATION
-    imu_.Init(::imu::ImuStartMode::OpenIdent);
+    return imu_.Init(::imu::ImuStartMode::AutoCalib);
 #else
-    imu_.Init(::imu::ImuStartMode::Normal);
+    return imu_.Init(::imu::ImuStartMode::Normal);
 #endif
 }
 
-void thread_start(uint8_t prio)
+bool thread_start()
 {
-    if (!imu_.IsReady()) {
-        return;
-    }
-
-    imu_.Start(prio);
+    return imu_.Start(5);
 }
+
+REGISTER_INIT(thread_init,  Module, High, "imu_init");
+REGISTER_INIT(thread_start, Thread, High, "imu_start");
 
 } // namespace thread::imu

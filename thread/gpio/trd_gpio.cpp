@@ -11,12 +11,13 @@
 
 #pragma message "Compiling Thread/Gpio"
 
-#include "trd_gpio.hpp"
 #include "thread.hpp"
+#include "Init_entry.hpp"
+
+#ifdef CONFIG_DEV_GPIO_OUTPUT
+
 #include "output.hpp"
 #include "timer.hpp"
-// #include "input.hpp"
-#include "zephyr/sys/printk.h"
 
 namespace thread::output {
 
@@ -47,17 +48,27 @@ static void Task(void*, void*, void*)
     }
 }
 
-void thread_init()
+bool thread_init()
 {
     // led_alert.init(GPIO_GET(led_alert));
+    return true;
 }
 
-void thread_start(uint8_t prio)
+bool thread_start()
 {
-    thread_.Start(Task, prio);
+    thread_.Start(Task, 6);
+    return true;
 }
+
+REGISTER_INIT(thread_init,  Module, Low, "output_init");
+REGISTER_INIT(thread_start, Thread, Low, "output_start");
 
 } // namespace thread::output
+#endif
+
+#ifdef CONFIG_DEV_GPIO_INPUT
+
+#include "input.hpp"
 
 namespace thread::input {
 
@@ -72,15 +83,19 @@ static void Task(void*, void*, void*)
     }
 }
 
-void thread_init()
+bool thread_init()
 {
-    
+    return true;
 }
 
-void thread_start(uint8_t prio)
+bool thread_start()
 {
-    thread_.Start(Task, prio);
+    thread_.Start(Task, 6);
+    return true;
 }
 
+REGISTER_INIT(thread_init,  Module, Low, "input_init");
+REGISTER_INIT(thread_start, Thread, Low, "input_start");
 
 } // namespace thread::input
+#endif

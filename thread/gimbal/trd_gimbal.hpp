@@ -14,11 +14,6 @@
 #include "dm.hpp"
 #include "pid.hpp"
 
-namespace thread::gimbal {
-    void thread_init();
-    void thread_start(uint8_t prio = 5);
-};
-
 namespace instance::gimbal {
 
     constexpr uint16_t kSYawCanId       = 0x02;

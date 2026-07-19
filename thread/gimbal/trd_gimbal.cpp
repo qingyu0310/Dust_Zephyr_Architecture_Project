@@ -11,10 +11,10 @@
 
 #pragma message "Compiling Thread/Gimbal"
 
-#include "trd_gimbal.hpp"
 #include "dm.hpp"
 #include "pid.hpp"
 #include "thread.hpp"
+#include "Init_entry.hpp"
 #include "to_can_tx.hpp"
 #include "remote_to.hpp"
 #include "zephyr/kernel.h"
@@ -100,7 +100,7 @@ static void Task(void*, void*, void*)
     }
 }
 
-void thread_init()
+bool thread_init()
 {
     {
         alg::pid::Pid::Config position_cfg {};
@@ -125,19 +125,24 @@ void thread_init()
             .vel_max        = 45,
             .tor_max        = 10,
         };
-        
+
         big_yaw_.motor.Init(cfg);
         big_yaw_.ctrl.position.Init(position_cfg);
         big_yaw_.ctrl.omega.Init(omega_cfg);
     }
+    return true;
 }
 
-void thread_start(uint8_t prio)
+bool thread_start()
 {
-    thread_.Start(Task, prio);
+    thread_.Start(Task, 5);
+    return true;
 }
 
-}
+REGISTER_INIT(thread_init,  Module, Mid, "gimbal_init");
+REGISTER_INIT(thread_start, Thread, Mid, "gimbal_start");
+
+} // namespace thread::gimbal
 
 
 

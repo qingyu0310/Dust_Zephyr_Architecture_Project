@@ -9,8 +9,8 @@
  *
  */
 
-#include "trd_tflm.hpp"
 #include "thread.hpp"
+#include "Init_entry.hpp"
 #include "tflm.hpp"
 #include "zephyr/kernel.h"
 
@@ -26,15 +26,20 @@ static void Task(void*, void*, void*)
     }
 }
 
-void thread_init()
+bool thread_init()
 {
     tflm::init();
     tflm::print_info();
+    return true;
 }
 
-void thread_start(uint8_t prio)
+bool thread_start()
 {
-    thread_.Start(Task, prio);
+    thread_.Start(Task, 10);
+    return true;
 }
 
-} // namespace thread::tflm_demo
+REGISTER_INIT(thread_init,  Module, Low, "tflm_init");
+REGISTER_INIT(thread_start, Thread, Low, "tflm_start");
+
+} // namespace thread::ml

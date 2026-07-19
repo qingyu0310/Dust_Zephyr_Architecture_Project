@@ -11,8 +11,8 @@
 
 #pragma message "Compiling Thread/Remote"
 
-#include "trd_remote.hpp"
 #include "remote.hpp"
+#include "Init_entry.hpp"
 #include "uart.hpp"
 #include <zephyr/logging/log.h>
 
@@ -25,7 +25,7 @@ static ::remote::Remote remote_ {};
 /**
  * @brief 初始化 UART DMA，并将遥控器解码器配置为自动识别模式。
  */
-void thread_init()
+bool thread_init()
 {
     static UartDma rx {};
     RxStream::Config cfg {};
@@ -38,24 +38,24 @@ void thread_init()
 
     if (!rx.Init(DEVICE_DT_GET(DT_ALIAS(remote_uart)), cfg)) {
         LOG_ERR("uart init failed");
-        return;
+        return false;
     }
 
     remote_.Init(RemoteType::Auto, rx);
+    return true;
 }
 
-/**
- * @brief 如果初始化成功，则启动遥控器线程。
- *
- * @param prio Zephyr 线程优先级。
- */
-void thread_start(uint8_t prio)
+bool thread_start()
 {
     if (!remote_.IsReady()) {
-        return;
+        return false;
     }
 
-    remote_.Start(prio);
+    remote_.Start(5);
+    return true;
 }
+
+REGISTER_INIT(thread_init,  Module, High, "remote_init");
+REGISTER_INIT(thread_start, Thread, High, "remote_start");
 
 } // namespace thread::remote

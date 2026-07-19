@@ -8,9 +8,9 @@
 
 #pragma message "Compiling Thread/Test"
 
-#include "trd_test.hpp"
 #include "thread.hpp"
 #include "uart.hpp"
+#include "Init_entry.hpp"
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 
@@ -101,7 +101,7 @@ static void Task(void*, void*, void*)
     }
 }
 
-void thread_init()
+bool thread_init()
 {
     k_sem_init(&uart3_sem, 0, 1);
 
@@ -111,16 +111,21 @@ void thread_init()
 
     if (!uart3.Init(DEVICE_DT_GET(DT_NODELABEL(uart3)), cfg)) {
         LOG_ERR("uart3 init failed");
-        return;
+        return false;
     }
 
     uart3.SetNotify(&uart3_sem);
     LOG_INF("uart3 ready");
+    return true;
 }
 
-void thread_start(uint8_t prio)
+bool thread_start()
 {
-    thread_.Start(Task, prio);
+    thread_.Start(Task, 10);
+    return true;
 }
+
+REGISTER_INIT(thread_init,  Module, Low, "test_init");
+REGISTER_INIT(thread_start, Thread, Low, "test_start");
 
 } // namespace thread::test

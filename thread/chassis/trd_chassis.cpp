@@ -53,9 +53,9 @@
 
 #pragma message "Compiling Thread/Chassis"
 
-#include "trd_chassis.hpp"
 #include "remote_to.hpp"
 #include "thread.hpp"
+#include "Init_entry.hpp"
 #include "to_can_tx.hpp"
 #include "power_ctrl.hpp"
 #include "pid.hpp"
@@ -310,7 +310,7 @@ static void Task(void*, void*, void*)
     }
 }
 
-void thread_init()
+bool thread_init()
 {
     // 功率计初始化
     #if CONFIG_USE_POWERMETER
@@ -413,11 +413,16 @@ void thread_init()
             wheel_alg[wi].drive_torque   .Init(torque_cfg);
         }
     }
+    return true;
 }
 
-void thread_start(uint8_t prio)
+bool thread_start()
 {
-    thread_.Start(Task, prio);
+    thread_.Start(Task, 5);
+    return true;
 }
+
+REGISTER_INIT(thread_init,  Module, Mid, "chassis_init");
+REGISTER_INIT(thread_start, Thread, Mid, "chassis_start");
 
 } // namespace thread::chassis

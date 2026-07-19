@@ -11,8 +11,8 @@
 
 #pragma message "Compiling Thread/Pc"
 
-#include "trd_pc.hpp"
 #include "thread.hpp"
+#include "Init_entry.hpp"
 #include <zephyr/kernel.h>
 #include "usb.hpp"
 #include <zephyr/devicetree.h>
@@ -32,7 +32,7 @@ static void Task(void*, void*, void*)
     }
 }
 
-void thread_init()
+bool thread_init()
 {
     Usb::Config cfg {};
     cfg.busid = 0;
@@ -42,15 +42,20 @@ void thread_init()
     while (!usb_.Init(cfg)) {
         // printf
     };
+    return true;
 }
 
-void thread_start(uint8_t prio)
+bool thread_start()
 {
     if (!usb_.IsReady()) {
-        return;
+        return false;
     }
 
-    thread_.Start(Task, prio);
+    thread_.Start(Task, 6);
+    return true;
 }
+
+REGISTER_INIT(thread_init,  Module, Low, "pc_init");
+REGISTER_INIT(thread_start, Thread, Low, "pc_start");
 
 } // namespace thread::pc

@@ -10,7 +10,7 @@ rsource "../../topic/Kconfig"
 config TRD_GPIO
     bool "GPIO thread task"
     default y
-    select DEV_GPIO
+    select DEV_GPIO_OUTPUT
     select CTL_TIMER
     help
       Enable the GPIO/output indicator thread.

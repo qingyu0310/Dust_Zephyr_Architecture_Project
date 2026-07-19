@@ -11,9 +11,9 @@
 
 #pragma message "Compiling Thread/Can"
 
-#include "trd_can_tx.hpp"
 #include "to_can_tx.hpp"
 #include "thread.hpp"
+#include "Init_entry.hpp"
 #include <string.h>
 #include <zephyr/sys/printk.h>
 #include <zephyr/sys/byteorder.h>
@@ -48,21 +48,25 @@ static void Task(void*, void*, void*)
     }
 }
 
-void thread_init()
+bool thread_init()
 {
     {
         const device* dev = DEVICE_DT_GET(DT_ALIAS(user_can1));
-        if (!device_is_ready(dev)) return;
+        if (!device_is_ready(dev)) return false;
         const can_filter filter { .id = 0, .mask = 0, .flags = 0 };
         user_can1.Init(dev, filter);
         user_can1.SetRxCallback(user_can1_rx_callback);
     }
+    return true;
 }
 
-void thread_start(uint8_t prio)
+bool thread_start()
 {
-    thread_.Start(Task, prio);
+    thread_.Start(Task, 4);
+    return true;
 }
 
+REGISTER_INIT(thread_init,  Bsp,    High, "can_init");
+REGISTER_INIT(thread_start, Thread, High, "can_start");
 
 } // namespace thread::can

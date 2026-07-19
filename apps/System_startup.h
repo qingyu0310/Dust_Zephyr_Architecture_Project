@@ -15,9 +15,7 @@
 extern "C" {
 #endif 
 
-void System_Bsp_Init();
-void System_Modules_Init();
-void System_Thread_Start();
+void System_Startup(void);
 
 #ifdef __cplusplus
 }

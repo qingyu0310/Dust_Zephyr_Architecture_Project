@@ -19,12 +19,7 @@
 #include "powermeter.hpp"
 #endif
 
-namespace thread::chassis {
-    void thread_init();
-    void thread_start(uint8_t prio = 5);
-};
-
-namespace instance::chassis 
+namespace instance::chassis
 {
     // 功率计 CAN 接收 ID
     #if CONFIG_USE_POWERMETER
