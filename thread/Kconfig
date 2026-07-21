@@ -70,7 +70,7 @@ config TRD_REMOTE
 
 config TRD_IMU
     bool "IMU thread"
-    default y
+    default n
     select MOD_DEV_IMU
     select TPC_IMU_TO
     help
@@ -78,7 +78,7 @@ config TRD_IMU
 
 config IMU_IDENTIFICATION
     bool "IMU heater identification"
-    default y
+    default n
     depends on TRD_IMU
     select MOD_DEV_IMU_IDENT
     help
@@ -106,8 +106,10 @@ config TRD_PC
 
 config TRD_TEST
     bool "User test add config"
-    default n
+    default y
     select COM_UART_DMA
+    select MOD_DEV_MOTOR_DJI
+    select CTL_PID
     help
       Temporary user test switch.
 

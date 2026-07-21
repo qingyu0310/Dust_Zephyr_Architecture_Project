@@ -1,7 +1,7 @@
 /**
  * @file trd_test.cpp
  * @author qingyu
- * @brief UART 接收性能基准测试
+ * @brief UART 接收线程
  * @version 0.1
  * @date 2026-07-01
  */
@@ -11,6 +11,9 @@
 #include "thread.hpp"
 #include "uart.hpp"
 #include "Init_entry.hpp"
+#include "dji_c6xx.hpp"
+#include "can.hpp"
+#include "pid.hpp"
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 
@@ -23,81 +26,54 @@ static Thread<4096> thread_ {};
 static UartDma uart3 {};
 static k_sem   uart3_sem {};
 
-static struct {
-    uint32_t total_bytes;       // 总接收字节数
-    uint32_t read_count;        // Read() 调用次数
-    uint32_t min_per_read;      // 单次 Read 最小字节
-    uint32_t max_per_read;      // 单次 Read 最大字节
-    uint32_t read_cycles;       // Read() 累计 CPU 周期数
-    int64_t  start_ms;          // 测试起始时间戳
-    bool     started;           // 是否已开始接收
-} g_stats = {};
+static DjiC6xx dji_motor {};
 
-static void reset_stats()
-{
-    g_stats = {};
-    g_stats.min_per_read = UINT32_MAX;
-}
+static Can user_can1 {};
 
-static void report_stats()
-{
-    if (g_stats.read_count == 0) return;
+static alg::pid::Pid pid {};
 
-    int64_t elapsed_ms = k_uptime_delta(&g_stats.start_ms);
-    if (elapsed_ms <= 0) elapsed_ms = 1;
-
-    uint32_t avg_per_read = g_stats.total_bytes / g_stats.read_count;
-    uint32_t avg_read_cyc = g_stats.read_cycles / g_stats.read_count;
-
-    // 通过串口打印报告，Python 脚本通过 [BENCH] 标记解析
-    printk("[BENCH] bytes=%u reads=%u min=%u max=%u avg=%u "
-           "rd_cyc=%u avg_cyc=%u time=%lldms bw=%uB/s\n",
-           g_stats.total_bytes,
-           g_stats.read_count,
-           g_stats.min_per_read,
-           g_stats.max_per_read,
-           avg_per_read,
-           g_stats.read_cycles,
-           avg_read_cyc,
-           (long long)elapsed_ms,
-           (uint32_t)(g_stats.total_bytes * 1000 / elapsed_ms));
-}
+static float g_speed_target = 0.0f;  // 目标角速度 rad/s，串口更新
 
 static void Task(void*, void*, void*)
 {
+    uint8_t uart_buf[32];
+
     for (;;)
     {
-        int ret = k_sem_take(&uart3_sem, K_MSEC(200));
-
-        if (ret == 0)
+        // UART 接收 → 更新目标值
+        if (k_sem_take(&uart3_sem, K_NO_WAIT) == 0)
         {
-            uint8_t buf[256];
-            uint32_t t0 = k_cycle_get_32();
-            uint16_t len = uart3.Read(buf, sizeof(buf));
-            uint32_t t1 = k_cycle_get_32();
-
-            if (len > 0)
-            {
-                if (!g_stats.started) {
-                    g_stats.started = true;
-                    g_stats.start_ms = k_uptime_get();
+            uint16_t len = uart3.Read(uart_buf, sizeof(uart_buf) - 1);
+            if (len > 0) {
+                uart_buf[len] = '\0';
+                float val;
+                if (sscanf((const char*)uart_buf, "%f", &val) >= 1) {
+                    g_speed_target = val;
+                    printk("target=%.1f\n", (double)g_speed_target);
                 }
+            }
+        }
 
-                g_stats.total_bytes  += len;
-                g_stats.read_count++;
-                g_stats.read_cycles  += (t1 - t0);
-                if (len < g_stats.min_per_read) g_stats.min_per_read = len;
-                if (len > g_stats.max_per_read) g_stats.max_per_read = len;
-            }
-        }
-        else
+        auto snap = dji_motor.ReadAll();
+        float pid_out = pid.Calc(g_speed_target, snap.omega);
+
+        // PID 输出 → CAN 电流命令
         {
-            // 200ms 无数据 → 上报当前测试结果
-            if (g_stats.started) {
-                report_stats();
-                reset_stats();
-            }
+            can_frame tx {};
+            tx.id  = 0x200;
+            tx.dlc = 8;
+            int16_t raw = (int16_t)(pid_out * 16384.0f / 20.0f);
+            tx.data[0] = raw >> 8;
+            tx.data[1] = raw & 0xFF;
+            user_can1.Send(&tx);
         }
+
+        printk("%.1f,%.3f,%.3f\n",
+               (double)(snap.omega),
+               (double)snap.velocity,
+               (double)pid_out);
+
+        k_msleep(1);
     }
 }
 
@@ -116,12 +92,48 @@ bool thread_init()
 
     uart3.SetNotify(&uart3_sem);
     LOG_INF("uart3 ready");
+
+    {
+        DjiC6xx::Config motor_cfg {
+            .rx_id          = 0x201,
+            .gearbox_ratio  = 90.0f,
+            .wheel_r        = 0.05f,
+        };
+        dji_motor.Init(motor_cfg);
+        LOG_INF("dji motor ready (rx_id=0x%04x)", motor_cfg.rx_id);
+    }
+
+    {
+        alg::pid::Pid::Config pid_cfg {};
+        pid_cfg.kp     = 1.0f;
+        pid_cfg.ki     = 0.0f;
+        pid_cfg.kd     = 0.0f;
+        pid_cfg.outMax = 10.0f;
+        pid.Init(pid_cfg);
+        LOG_INF("pid ready");
+    }
+
+    {
+        const device* dev = DEVICE_DT_GET(DT_ALIAS(user_can1));
+        if (!device_is_ready(dev)) {
+            LOG_ERR("user_can1 not ready");
+            return false;
+        }
+        can_filter filter { .id = 0, .mask = 0, .flags = 0 };
+        user_can1.Init(dev, filter);
+        user_can1.SetRxCallback([](can_frame &frame, void*) {
+            dji_motor.CanCpltRxCallback(frame.data);
+        });
+        
+        LOG_INF("user_can1 ready");
+    }
+
     return true;
 }
 
 bool thread_start()
 {
-    thread_.Start(Task, 10);
+    thread_.Start(Task, 7);
     return true;
 }
 

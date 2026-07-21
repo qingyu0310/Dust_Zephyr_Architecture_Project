@@ -20,11 +20,7 @@ static ::imu::ImuManager imu_ {};
 
 bool thread_init()
 {
-#ifdef CONFIG_IMU_IDENTIFICATION
-    return imu_.Init(::imu::ImuStartMode::AutoCalib);
-#else
-    return imu_.Init(::imu::ImuStartMode::Normal);
-#endif
+    return imu_.Init(::imu::ImuStartMode::AutoIdent);
 }
 
 bool thread_start()

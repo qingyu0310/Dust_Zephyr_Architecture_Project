@@ -47,12 +47,7 @@ bool thread_init()
 
 bool thread_start()
 {
-    if (!remote_.IsReady()) {
-        return false;
-    }
-
-    remote_.Start(5);
-    return true;
+    return remote_.Start(5);
 }
 
 REGISTER_INIT(thread_init,  Module, High, "remote_init");
