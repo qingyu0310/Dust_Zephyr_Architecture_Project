@@ -51,11 +51,11 @@ bool thread_start()
         return false;
     }
 
-    thread_.Start(Task, 6);
+    thread_.Start(Task, ThreadPrio::Low);
     return true;
 }
 
 REGISTER_INIT(thread_init,  Module, Low, "pc_init");
-REGISTER_INIT(thread_start, Thread, Low, "pc_start");
+REGISTER_INIT(thread_start, ThreadLate, Low, "pc_start");
 
 } // namespace thread::pc

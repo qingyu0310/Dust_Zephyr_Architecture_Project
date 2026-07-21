@@ -280,7 +280,7 @@ static void FramePublish()
     }
 
     msg.tx_id = kChassisTxId;
-    k_msgq_put(topic::to_can_tx::chassis, &msg, K_NO_WAIT);
+    k_msgq_put(topic::to_can_tx::chassis_tx, &msg, K_NO_WAIT);
 }
 
 /**
@@ -418,11 +418,11 @@ bool thread_init()
 
 bool thread_start()
 {
-    thread_.Start(Task, 5);
+    thread_.Start(Task, ThreadPrio::Normal);
     return true;
 }
 
 REGISTER_INIT(thread_init,  Module, Mid, "chassis_init");
-REGISTER_INIT(thread_start, Thread, Mid, "chassis_start");
+REGISTER_INIT(thread_start, ThreadLate, Mid, "chassis_start");
 
 } // namespace thread::chassis

@@ -29,6 +29,6 @@ bool thread_start()
 }
 
 REGISTER_INIT(thread_init,  Module, High, "imu_init");
-REGISTER_INIT(thread_start, Thread, High, "imu_start");
+REGISTER_INIT(thread_start, ThreadLate, High, "imu_start");
 
 } // namespace thread::imu

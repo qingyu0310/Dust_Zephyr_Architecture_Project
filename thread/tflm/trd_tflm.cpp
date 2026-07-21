@@ -35,11 +35,11 @@ bool thread_init()
 
 bool thread_start()
 {
-    thread_.Start(Task, 10);
+    thread_.Start(Task, ThreadPrio::Lowest);
     return true;
 }
 
 REGISTER_INIT(thread_init,  Module, Low, "tflm_init");
-REGISTER_INIT(thread_start, Thread, Low, "tflm_start");
+REGISTER_INIT(thread_start, ThreadLate, Low, "tflm_start");
 
 } // namespace thread::ml

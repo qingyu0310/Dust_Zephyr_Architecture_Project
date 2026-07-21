@@ -1,5 +1,5 @@
 /**
- * @file init_entry.cpp
+ * @file Init_entry.cpp
  * @author qingyu
  * @brief 
  * @version 0.1
@@ -11,6 +11,8 @@
 
 #include "Init_entry.hpp"
 #include "System_startup.h"
+#include "zephyr/sys/printk.h"
+#include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 
 LOG_MODULE_REGISTER(init, LOG_LEVEL_INF);
@@ -24,10 +26,13 @@ static constexpr struct
     InitStage stage;
     const char* name;
 } 
+// 线程分三级启动——部分线程依赖其他线程先就绪（如 CAN TX 需早于其他线程）
 StageMap[] {
-    {InitStage::Bsp,    "BSP"},
-    {InitStage::Module, "Module"},
-    {InitStage::Thread, "Thread"},
+    {InitStage::Bsp,         "BSP"},
+    {InitStage::ThreadEarly, "ThreadEarly"},
+    {InitStage::Module,      "Module"},
+    {InitStage::ThreadMid,   "ThreadMid"},
+    {InitStage::ThreadLate,  "ThreadLate"},
 };
 
 /**
@@ -99,31 +104,40 @@ static void HandleInitFail(const InitEntry& entry)
  */
 static void RunStage(InitStage stage)
 {
-    LOG_ERR("init stage: %s", StageName(stage));
+    LOG_ERR("==== stage: %s ====", StageName(stage));
 
     for (const InitEntry* e = __user_init_start; e < __user_init_end; ++e)
     {
         if (e->stage != stage) {
             continue;
         }
-        LOG_ERR("init %s", e->name);
+        LOG_ERR("%s", e->name);
         if (!e->func()) {
             HandleInitFail(*e);
         }
     }
+
+    printk("\n");
 }
 
 /**
  * @brief 系统启动入口
  *
- * 按 Bsp → Module → Thread 阶段顺序执行所有 REGISTER_INIT 注册的初始化项。
+ * 顺序：Bsp → 早期线程 → Module → 中期线程 → 后期线程。
+ * 早期线程在 Module 之前启动，使 CAN 等总线通信先就绪。
  * 由 main() 调用。
  */
 void System_Startup(void)
 {
     RunStage(InitStage::Bsp);
+    k_msleep(1000);
+    RunStage(InitStage::ThreadEarly);
+    k_msleep(1000);
     RunStage(InitStage::Module);
-    RunStage(InitStage::Thread);
+    k_msleep(1000);
+    RunStage(InitStage::ThreadMid);
+    k_msleep(1000);
+    RunStage(InitStage::ThreadLate);
 }
 
 

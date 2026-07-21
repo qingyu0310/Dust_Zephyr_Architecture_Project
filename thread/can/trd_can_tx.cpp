@@ -19,6 +19,9 @@
 #include <zephyr/sys/byteorder.h>
 #include "can.hpp"
 #include "Irq_handlers.h"
+#include <zephyr/logging/log.h>
+
+LOG_MODULE_REGISTER(can_tx, LOG_LEVEL_INF);
 
 namespace thread::can {
 
@@ -29,7 +32,7 @@ static Can user_can1{};
 
 static void Task(void*, void*, void*)
 {
-    can_frame tx { 
+    can_frame tx {
         .dlc = 8,
     };
     topic::to_can_tx::Message msg{};
@@ -41,10 +44,6 @@ static void Task(void*, void*, void*)
         memcpy(tx.data, msg.data, 8);
 
         user_can1.Send(&tx);
-
-        // if (!user_can1.Send(&tx)) {
-        //     printk("trd_can_tx: send failed id=0x%x\n", tx.id);
-        // }
     }
 }
 
@@ -52,21 +51,25 @@ bool thread_init()
 {
     {
         const device* dev = DEVICE_DT_GET(DT_ALIAS(user_can1));
-        if (!device_is_ready(dev)) return false;
+        if (!device_is_ready(dev)) {
+            LOG_ERR("user_can1 not ready");
+            return false;
+        }
         const can_filter filter { .id = 0, .mask = 0, .flags = 0 };
         user_can1.Init(dev, filter);
         user_can1.SetRxCallback(user_can1_rx_callback);
+        LOG_INF("user_can1 ready");
     }
     return true;
 }
 
 bool thread_start()
 {
-    thread_.Start(Task, 4);
+    thread_.Start(Task, ThreadPrio::High);
     return true;
 }
 
-REGISTER_INIT(thread_init,  Bsp,    High, "can_init");
-REGISTER_INIT(thread_start, Thread, High, "can_start");
+REGISTER_INIT(thread_init,  Bsp,         High, "can_init");
+REGISTER_INIT(thread_start, ThreadEarly, High, "can_start");
 
 } // namespace thread::can

@@ -11,6 +11,8 @@
 
 #pragma once
 
+#include "Irq_handlers.h"
+#include "to_can_tx.hpp"
 #include "dji_c6xx.hpp"
 #include "pid.hpp"
 #include <cstdint>
@@ -21,6 +23,10 @@
 
 namespace instance::chassis
 {
+    #define CHASSIS_RX  USER_RX_CAN1
+
+    constexpr auto *chassis_tx = &user_can1_msgq;
+
     // 功率计 CAN 接收 ID
     #if CONFIG_USE_POWERMETER
     constexpr uint16_t KSteerPwrMeterId = 0x01;

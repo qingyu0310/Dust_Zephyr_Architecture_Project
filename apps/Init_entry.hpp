@@ -16,15 +16,19 @@
 /**
  * @brief 初始化阶段
  *
- * Bsp     板级基础能力：时钟、GPIO、总线、中断
- * Module  设备/算法模块：IMU、遥控、电机对象
- * Thread  线程创建与启动
+ * Bsp      板级基础能力：时钟、GPIO、总线、中断
+ * Module   设备/算法模块：IMU、遥控、电机对象
+ * ThreadEarly  早期线程
+ * ThreadMid    中期线程
+ * ThreadLate   后期线程
  */
 enum class InitStage : uint8_t
 {
-    Bsp    = 0,
-    Module = 1,
-    Thread = 2,
+    Bsp         = 0,
+    Module      = 1,
+    ThreadEarly = 2,
+    ThreadMid   = 3,
+    ThreadLate  = 4,
 };
 
 /**

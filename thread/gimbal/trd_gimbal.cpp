@@ -53,10 +53,10 @@ static void ProcessMotor(GimbalModule& mod, float& radian, topic::to_can_tx::Mes
             mod.ctrl.omega.SetNow(snap.omega);
             const float tor_ref = mod.ctrl.omega.Calc();
 
-            mod.motor.SetTargetTor(tor_ref);
-            mod.motor.CtrlData(msg.data);
+            mod.motor.SetTargetTorque(tor_ref);
+            mod.motor.PackCtrlFrame(msg.data);
             msg.tx_id = mod.motor.GetTxId();
-            k_msgq_put(topic::to_can_tx::gimbal, &msg, K_NO_WAIT);
+            k_msgq_put(topic::to_can_tx::gimbal_tx, &msg, K_NO_WAIT);
             break;
         }
         case DmErrorStatus::Disable:
@@ -64,8 +64,8 @@ static void ProcessMotor(GimbalModule& mod, float& radian, topic::to_can_tx::Mes
             timer.Clock([&]()
             {
                 msg.tx_id = mod.motor.GetTxId();
-                mod.motor.EnableData(msg.data);
-                k_msgq_put(topic::to_can_tx::gimbal, &msg, K_NO_WAIT);
+                mod.motor.PackCmdFrame(msg.data, DmMotor::Cmd::Enable);
+                k_msgq_put(topic::to_can_tx::gimbal_tx, &msg, K_NO_WAIT);
             });
             break;
         }
@@ -121,9 +121,9 @@ bool thread_init()
             .wheel_r        = 1,
             .kp             = 0.0f,
             .kd             = 0.0f,
-            .pos_max        = 12.5,
-            .vel_max        = 45,
-            .tor_max        = 10,
+            .PMAX        = 12.5,
+            .VMAX        = 45,
+            .TMAX        = 10,
         };
 
         big_yaw_.motor.Init(cfg);
@@ -135,12 +135,12 @@ bool thread_init()
 
 bool thread_start()
 {
-    thread_.Start(Task, 5);
+    thread_.Start(Task, ThreadPrio::Normal);
     return true;
 }
 
 REGISTER_INIT(thread_init,  Module, Mid, "gimbal_init");
-REGISTER_INIT(thread_start, Thread, Mid, "gimbal_start");
+REGISTER_INIT(thread_start, ThreadLate, Mid, "gimbal_start");
 
 } // namespace thread::gimbal
 

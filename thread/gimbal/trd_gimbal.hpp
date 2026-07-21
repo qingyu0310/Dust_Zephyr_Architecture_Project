@@ -13,9 +13,14 @@
 
 #include "dm.hpp"
 #include "pid.hpp"
+#include "to_can_tx.hpp"
+#include "Irq_handlers.h"
 
 namespace instance::gimbal {
 
+    #define         GIMBAL_RX                           USER_RX_CAN1
+    constexpr auto *gimbal_tx  = &user_can1_msgq;             // 云台 CAN TX
+    
     constexpr uint16_t kSYawCanId       = 0x02;
     constexpr uint16_t kSYawMasterId    = 0x03;
 

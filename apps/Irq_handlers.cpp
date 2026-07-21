@@ -1,69 +1,44 @@
 /**
  * @file Irq_handlers.cpp
  * @author qingyu
- * @brief 
+ * @brief CAN 接收分发——注册表
  * @version 0.1
  * @date 2026-05-12
- * 
+ *
  * @copyright Copyright (c) 2026
- * 
+ *
  */
 
-#include <zephyr/drivers/can.h>
+#include "Irq_handlers.h"
+#include <zephyr/sys/printk.h>
 
-#ifdef CONFIG_TRD_CHASSIS
-#include "trd_chassis.hpp"
-#endif
-#ifdef CONFIG_TRD_GIMBAL
-#include "trd_gimbal.hpp"
-#endif
+extern const CanRxEntry __can_rx1_start[], __can_rx1_end[];
+extern const CanRxEntry __can_rx2_start[], __can_rx2_end[];
+extern const CanRxEntry __can_rx3_start[], __can_rx3_end[];
+
+static void dispatch(struct can_frame &frame, const CanRxEntry *start, const CanRxEntry *end)
+{
+    for (const CanRxEntry *e = start; e < end; ++e)
+    {
+        if (e->id == frame.id)
+        {
+            e->handler(frame.data);
+            return;
+        }
+    }
+}
 
 void user_can1_rx_callback(struct can_frame &frame, void *)
 {
-    switch (frame.id)
-    {
-    #ifdef CONFIG_TRD_CHASSIS
-    {
-        using namespace instance::chassis;
+    dispatch(frame, __can_rx1_start, __can_rx1_end);
+}
 
-        case kSteerCanId[0]:
-            chassis_wheel[0].steer_motor.CanCpltRxCallback(frame.data);
-            break;
+void user_can2_rx_callback(struct can_frame &frame, void *)
+{
+    dispatch(frame, __can_rx2_start, __can_rx2_end);
+}
 
-        case kDriveCanId[0]:
-            chassis_wheel[0].drive_motor.CanCpltRxCallback(frame.data);
-            break;
-            
-        case kSteerCanId[1]:
-            chassis_wheel[1].steer_motor.CanCpltRxCallback(frame.data);
-            break;
-
-        case kDriveCanId[1]:
-            chassis_wheel[1].drive_motor.CanCpltRxCallback(frame.data);
-            break;
-            
-        #if USE_POWERMETER
-        case KSteerPwrMeterId:
-            SteerPwrMeter.CanCpltRxCallback(frame.data);
-            break;
-        case KDrivePwrMeterId:
-            DrivePwrMeter.CanCpltRxCallback(frame.data);
-            break;
-        #endif
-    }
-    #endif
-
-    #ifdef CONFIG_TRD_GIMBAL
-    {
-        using namespace instance::gimbal;
-
-        case kBYawMasterId:
-            big_yaw_.motor.CanCpltRxCallback(frame.data);
-            break;
-    } 
-    #endif
-            
-        default:
-            break;
-    }
+void user_can3_rx_callback(struct can_frame &frame, void *)
+{
+    dispatch(frame, __can_rx3_start, __can_rx3_end);
 }

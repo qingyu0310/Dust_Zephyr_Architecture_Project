@@ -51,6 +51,6 @@ bool thread_start()
 }
 
 REGISTER_INIT(thread_init,  Module, High, "remote_init");
-REGISTER_INIT(thread_start, Thread, High, "remote_start");
+REGISTER_INIT(thread_start, ThreadLate, High, "remote_start");
 
 } // namespace thread::remote

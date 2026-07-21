@@ -56,12 +56,12 @@ bool thread_init()
 
 bool thread_start()
 {
-    thread_.Start(Task, 6);
+    thread_.Start(Task, ThreadPrio::Low);
     return true;
 }
 
 REGISTER_INIT(thread_init,  Module, Low, "output_init");
-REGISTER_INIT(thread_start, Thread, Low, "output_start");
+REGISTER_INIT(thread_start, ThreadLate, Low, "output_start");
 
 } // namespace thread::output
 #endif
@@ -90,12 +90,12 @@ bool thread_init()
 
 bool thread_start()
 {
-    thread_.Start(Task, 6);
+    thread_.Start(Task, ThreadPrio::Low);
     return true;
 }
 
 REGISTER_INIT(thread_init,  Module, Low, "input_init");
-REGISTER_INIT(thread_start, Thread, Low, "input_start");
+REGISTER_INIT(thread_start, ThreadLate, Low, "input_start");
 
 } // namespace thread::input
 #endif

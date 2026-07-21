@@ -9,11 +9,11 @@
 #pragma message "Compiling Thread/Test"
 
 #include "thread.hpp"
-#include "uart.hpp"
 #include "Init_entry.hpp"
-#include "dji_c6xx.hpp"
-#include "can.hpp"
+#include "dm.hpp"
 #include "pid.hpp"
+#include "to_can_tx.hpp"
+#include "Irq_handlers.h"
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 
@@ -21,56 +21,38 @@ LOG_MODULE_REGISTER(test, LOG_LEVEL_INF);
 
 namespace thread::test {
 
+#define         TEST_RX                         USER_RX_CAN1
+constexpr auto *test_tx = &user_can1_msgq;
+constexpr auto  test_rx_id         = 0x13;     // 电机反馈帧 CAN ID（= master_id），不是发送用的 can_id
+
 static Thread<4096> thread_ {};
 
-static UartDma uart3 {};
-static k_sem   uart3_sem {};
 
-static DjiC6xx dji_motor {};
-
-static Can user_can1 {};
+static DmMotor dm_motor {};
 
 static alg::pid::Pid pid {};
 
-static float g_speed_target = 0.0f;  // 目标角速度 rad/s，串口更新
+static float g_torque_target = 0.0f;  // 目标角速度 rad/s，串口更新
 
 static void Task(void*, void*, void*)
 {
-    uint8_t uart_buf[32];
-
     for (;;)
     {
-        // UART 接收 → 更新目标值
-        if (k_sem_take(&uart3_sem, K_NO_WAIT) == 0)
+        auto snap = dm_motor.ReadAll();
+        float pid_out = pid.Calc(g_torque_target, snap.torque);
+
+        // PID 输出 → topic → CAN TX
         {
-            uint16_t len = uart3.Read(uart_buf, sizeof(uart_buf) - 1);
-            if (len > 0) {
-                uart_buf[len] = '\0';
-                float val;
-                if (sscanf((const char*)uart_buf, "%f", &val) >= 1) {
-                    g_speed_target = val;
-                    printk("target=%.1f\n", (double)g_speed_target);
-                }
-            }
+            topic::to_can_tx::Message msg {};
+            msg.tx_id = dm_motor.GetTxId();
+            dm_motor.SetTargetTorque(g_torque_target);
+            dm_motor.PackCtrlFrame(msg.data);
+            k_msgq_put(test_tx, &msg, K_NO_WAIT);
         }
 
-        auto snap = dji_motor.ReadAll();
-        float pid_out = pid.Calc(g_speed_target, snap.omega);
-
-        // PID 输出 → CAN 电流命令
-        {
-            can_frame tx {};
-            tx.id  = 0x200;
-            tx.dlc = 8;
-            int16_t raw = (int16_t)(pid_out * 16384.0f / 20.0f);
-            tx.data[0] = raw >> 8;
-            tx.data[1] = raw & 0xFF;
-            user_can1.Send(&tx);
-        }
-
-        printk("%.1f,%.3f,%.3f\n",
-               (double)(snap.omega),
-               (double)snap.velocity,
+        printk("%f,%f,%f\n",
+               (double)(snap.torque),
+               (double)snap.angle,
                (double)pid_out);
 
         k_msleep(1);
@@ -79,28 +61,21 @@ static void Task(void*, void*, void*)
 
 bool thread_init()
 {
-    k_sem_init(&uart3_sem, 0, 1);
-
-    RxStream::Config cfg {};
-    cfg.buf_size   = 256;
-    cfg.rx_timeout = 1000;
-
-    if (!uart3.Init(DEVICE_DT_GET(DT_NODELABEL(uart3)), cfg)) {
-        LOG_ERR("uart3 init failed");
-        return false;
-    }
-
-    uart3.SetNotify(&uart3_sem);
-    LOG_INF("uart3 ready");
-
     {
-        DjiC6xx::Config motor_cfg {
-            .rx_id          = 0x201,
-            .gearbox_ratio  = 90.0f,
-            .wheel_r        = 0.05f,
+        DmMotor::Config motor_cfg {
+            .ctrl_met       = ControlMethon::Mit,
+            .can_id         = 0x01,
+            .master_id      = 0x13,
+            .gearbox_ratio  = 1,
+            .wheel_r        = 0.034f,
+            .kp             = 0,
+            .kd             = 0,
+            .PMAX           = 12.56637,
+            .VMAX           = 45,
+            .TMAX           = 10,
         };
-        dji_motor.Init(motor_cfg);
-        LOG_INF("dji motor ready (rx_id=0x%04x)", motor_cfg.rx_id);
+        dm_motor.Init(motor_cfg);
+        LOG_INF("dm motor ready (id=0x%02x)", motor_cfg.can_id);
     }
 
     {
@@ -113,19 +88,14 @@ bool thread_init()
         LOG_INF("pid ready");
     }
 
+    // 发送电机使能
     {
-        const device* dev = DEVICE_DT_GET(DT_ALIAS(user_can1));
-        if (!device_is_ready(dev)) {
-            LOG_ERR("user_can1 not ready");
-            return false;
-        }
-        can_filter filter { .id = 0, .mask = 0, .flags = 0 };
-        user_can1.Init(dev, filter);
-        user_can1.SetRxCallback([](can_frame &frame, void*) {
-            dji_motor.CanCpltRxCallback(frame.data);
-        });
-        
-        LOG_INF("user_can1 ready");
+        topic::to_can_tx::Message msg {};
+        msg.tx_id = dm_motor.GetTxId();
+        dm_motor.PackCmdFrame(msg.data, DmMotor::Cmd::Enable);
+        k_msgq_put(test_tx, &msg, K_NO_WAIT);
+        k_busy_wait(1000000);
+        LOG_INF("dm motor enable");
     }
 
     return true;
@@ -133,11 +103,18 @@ bool thread_init()
 
 bool thread_start()
 {
-    thread_.Start(Task, 7);
+    thread_.Start(Task, ThreadPrio::Low);
     return true;
 }
 
-REGISTER_INIT(thread_init,  Module, Low, "test_init");
-REGISTER_INIT(thread_start, Thread, Low, "test_start");
+CAN_RX_HANDLER(TEST_RX, test_rx_id,
+    [](uint8_t *data) {
+        dm_motor.CanCpltRxCallback(data);
+    }, 
+    test_motor);
+
+REGISTER_INIT(thread_init,  Module,     Low, "test_init");
+REGISTER_INIT(thread_start, ThreadLate, Low, "test_start");
+
 
 } // namespace thread::test
