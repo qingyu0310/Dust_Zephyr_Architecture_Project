@@ -2,7 +2,7 @@
 
 ## 职责
 
-可移植项目单元。嵌入到框架中组成完整系统。用户只需编写此层即可完成一个嵌入式应用。
+可移植项目单元。嵌入到框架中组成完整系统。用户主要在这一层完成一个嵌入式应用。
 
 ## 边界
 
@@ -27,7 +27,11 @@ project/
 
 ### apps/
 
-系统入口。`main.c` 调用三段式初始化：`System_Bsp_Init()` → `System_Modules_Init()` → `System_Thread_Start()`。每个步骤通过 `CONFIG_TRD_XXX` 条件编译。
+系统入口。`main.c` 只调用 `System_Startup()`；真正的启动顺序由 `Init_entry.cpp` 控制：
+
+`Bsp -> ThreadEarly -> Module -> ThreadMid -> ThreadLate`
+
+每个初始化项通过 `REGISTER_INIT()` 注册到 `.user_init` 段，再按阶段执行。
 
 ### boards/
 
@@ -45,7 +49,7 @@ RTOS 线程。需要独立线程的模块在此创建子目录，不需要线程
 
 | 文件 | 内容 |
 |------|------|
-| `System_startup.cpp` | 三段式初始化编排 |
+| `Init_entry.cpp` | 阶段式初始化编排 |
 | `System_startup.h` | 初始化函数声明 |
 | `Irq_handlers.cpp` | 中断处理函数 |
 
@@ -74,7 +78,7 @@ RTOS 线程。需要独立线程的模块在此创建子目录，不需要线程
 - 核心类的 `Start()` 方法内部自带 `ready_` 防呆检查
 - 在 `thread/Kconfig` 中添加开关，`select` 模块依赖
 - 在 `thread/CMakeLists.txt` 中添加 `CONFIG_TRD_XXX` 编译段
-- 在 `apps/System_startup.cpp` 中加入三段 `#ifdef` 调用
+- 在 `apps/Init_entry.cpp` / `Init_entry.hpp` 中补齐对应阶段和初始化项
 
 ## 依赖关系
 

@@ -108,9 +108,10 @@ config TRD_TEST
     bool "User test add config"
     default y
     select COM_UART_DMA
-    select MOD_DEV_MOTOR_DM
+    select MOD_DEV_MOTOR_DJI
     select CTL_PID
     select TPC_TO_CAN_TX
+    select ID_MOTOR_PLANT
     help
       Temporary user test switch.
 
