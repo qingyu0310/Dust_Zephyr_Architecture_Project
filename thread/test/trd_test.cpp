@@ -1,139 +1,97 @@
 /**
  * @file trd_test.cpp
- * @author qingyu
- * @brief 拨弹盘电机辨识 — DJI C6xx + 开环转矩注入 RLS
- * @version 0.1
- * @date 2026-07-22
+ * @brief 原始 UART 帧抓取 — 25 字节 SBUS 帧对齐打印
  */
 
-#pragma message "Compiling Thread/Test"
-
 #include "thread.hpp"
+#include "uart.hpp"
 #include "Init_entry.hpp"
-#include "dji_c6xx.hpp"
-#include "to_can_tx.hpp"
-#include "Irq_handlers.h"
-#include "motorplant.hpp"
-#include <zephyr/kernel.h>
+#include "zephyr/kernel.h"
 #include <zephyr/logging/log.h>
+
+#pragma message "Compiling Thread/Test"
 
 LOG_MODULE_REGISTER(test, LOG_LEVEL_INF);
 
 namespace thread::test {
 
-#define         TEST_RX                         USER_RX_CAN1
-constexpr auto *test_tx = &user_can1_msgq;
-constexpr auto  test_rx_id    = 0x201;          // DJI 电机反馈 ID
-constexpr auto  test_tx_id    = 0x200;          // DJI 电机控制 ID
+static constexpr uint16_t kFrameSize = 25;
 
 static Thread<4096> thread_ {};
-static motor::dji::DjiC610 dji_motor {};
-
-static alg::identify::motor::MotorPlant g_plant({
-    .forget_tau = 1.0f,
-    .p_init     = 100.0f,
-    .delay_s    = 0.001f,
-    .dt_max     = 0.01f,
-    .buf_size   = 64,
-});
-
-static uint16_t g_rx_seq    = 0;
-static float    g_max_omega = 0.0f;
-
-static uint32_t cycle_to_us(uint32_t cyc)
-{
-    return cyc / (CONFIG_SYS_CLOCK_HW_CYCLES_PER_SEC / 1000000);
-}
-
-// 开环转矩注入：转矩 (Nm) → CAN raw
-static void send_torque(float torque_nm)
-{
-    constexpr float kTorqueK = 0.18f;
-    float current_A = torque_nm / kTorqueK;
-
-    uint32_t t_now = cycle_to_us(k_cycle_get_32());
-    g_plant.OnTorqueSend(t_now, torque_nm);
-
-    topic::to_can_tx::Message msg {};
-    msg.tx_id = test_tx_id;
-    int16_t raw = (int16_t)(current_A / 10.0f * 16384.0f);
-    msg.data[0] = raw >> 8;
-    msg.data[1] = raw & 0xFF;
-    k_msgq_put(test_tx, &msg, K_NO_WAIT);
-}
+static UartDma      uart_ {};
+static uint8_t      buf_[kFrameSize];
+static uint16_t     pos_;
 
 static void Task(void*, void*, void*)
 {
-    k_msleep(500);
-
-    const float kAmps[] = {0.2f, 0.3f, 0.4f, 0.5f};
-
-    for (uint8_t ai = 0; ai < 4; ai++)
-    {
-        float amp = kAmps[ai];
-
-        g_plant.Reset();
-        g_plant.SetIdentifyMode(true);
-
-        for (uint8_t i = 0; i < 6; i++)
-        {
-            float torque = (i % 2 == 0) ? amp : -amp;
-            for (uint16_t j = 0; j < 5000; j++)
-            {
-                send_torque(torque);
-                k_msleep(1);
-            }
-        }
-
-        send_torque(0.0f);
-        g_plant.SetIdentifyMode(false);
-
-        LOG_INF("=== amp=%f ===  max_omega=%f", (double)amp, (double)g_max_omega);
-        LOG_INF("tau=%f K=%f p1=%f p2=%f p4=%f",
-                (double)g_plant.GetTau(),
-                (double)g_plant.GetK(),
-                (double)g_plant.GetP1(),
-                (double)g_plant.GetP2(),
-                (double)g_plant.GetP4());
-        g_max_omega = 0.0f;
-    }
-
     for (;;)
     {
-        send_torque(0.0f);
-        k_msleep(1);
+        uint16_t n = uart_.Read(buf_ + pos_, kFrameSize - pos_);
+        if (n == 0) {
+            k_msleep(10);
+            continue;
+        }
+        pos_ += n;
+
+        if (pos_ >= kFrameSize)
+        {
+            if (buf_[0] != 0x0F) goto skip;
+            uint16_t c[16];
+            c[0]  = (buf_[1]      | buf_[2]  << 8) & 0x07FF;
+            c[1]  = (buf_[2] >> 3 | buf_[3]  << 5) & 0x07FF;
+            c[2]  = (buf_[3] >> 6 | buf_[4]  << 2 | buf_[5]  << 10) & 0x07FF;
+            c[3]  = (buf_[5] >> 1 | buf_[6]  << 7) & 0x07FF;
+            c[4]  = (buf_[6] >> 4 | buf_[7]  << 4) & 0x07FF;
+            c[5]  = (buf_[7] >> 7 | buf_[8]  << 1 | buf_[9]  << 9) & 0x07FF;
+            c[6]  = (buf_[9] >> 2 | buf_[10] << 6) & 0x07FF;
+            c[7]  = (buf_[10] >> 5 | buf_[11] << 3) & 0x07FF;
+            c[8]  = (buf_[12]     | buf_[13] << 8) & 0x07FF;
+            c[9]  = (buf_[13] >> 3| buf_[14] << 5) & 0x07FF;
+            c[10] = (buf_[14] >> 6| buf_[15] << 2 | buf_[16] << 10) & 0x07FF;
+            c[11] = (buf_[16] >> 1| buf_[17] << 7) & 0x07FF;
+            c[12] = (buf_[17] >> 4| buf_[18] << 4) & 0x07FF;
+            c[13] = (buf_[18] >> 7| buf_[19] << 1 | buf_[20] << 9) & 0x07FF;
+            c[14] = (buf_[20] >> 2| buf_[21] << 6) & 0x07FF;
+            c[15] = (buf_[21] >> 5| buf_[22] << 3) & 0x07FF;
+
+            printk("SBUS: %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u\n",
+                   c[0], c[1], c[2], c[3], c[4], c[5], c[6], c[7],
+                   c[8], c[9], c[10], c[11], c[12], c[13], c[14], c[15]);
+skip:
+            pos_ = 0;
+        }
     }
 }
 
 bool thread_init()
 {
+    UartDma::Config cfg = {
+        .line_cfg = {
+            .baudrate    = 100000,
+            .parity      = UART_CFG_PARITY_EVEN,
+            .stop_bits   = UART_CFG_STOP_BITS_2,
+            .data_bits   = UART_CFG_DATA_BITS_8,
+            .flow_ctrl   = UART_CFG_FLOW_CTRL_NONE,
+        },
+        .base_cfg = { .rx_timeout = 1000 },
+    };
+
+    if (!uart_.Init(DEVICE_DT_GET(DT_ALIAS(remote_uart)), cfg))
     {
-        motor::dji::DjiC610::Config cfg {
-            .rx_id          = test_rx_id,
-            .gearbox_ratio  = 90.0f,
-            .wheel_r        = 0.05f,
-        };
-        dji_motor.Init(cfg);
+        LOG_ERR("uart init failed");
+        return false;
     }
 
+    LOG_INF("uart ready on remote_uart");
     return true;
 }
 
 bool thread_start()
 {
-    thread_.Start(Task, ThreadPrio::Low);
+    pos_ = 0;
+    thread_.Start(Task, ThreadPrio::Lowest);
     return true;
 }
-
-CAN_RX_HANDLER(TEST_RX, test_rx_id,
-    [](uint8_t *data) {
-        dji_motor.CanCpltRxCallback(data);
-        auto snap = dji_motor.ReadAll();
-        float omg = snap.omega;
-        if (fabsf(omg) > g_max_omega) g_max_omega = fabsf(omg);
-        g_plant.OnFeedback(cycle_to_us(k_cycle_get_32()), omg, g_rx_seq++);
-    },
-    test_motor);
 
 REGISTER_INIT(thread_init,  Module,     Low, "test_init");
 REGISTER_INIT(thread_start, ThreadLate, Low, "test_start");

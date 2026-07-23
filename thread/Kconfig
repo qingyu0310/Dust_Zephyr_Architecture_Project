@@ -51,7 +51,7 @@ config TRD_GIMBAL
 
 config TRD_CAN_TX
     bool "CAN TX thread"
-    default y
+    default n
     select COM_CAN
     select TPC_TO_CAN_TX
     help
@@ -61,8 +61,10 @@ config TRD_CAN_TX
 
 config TRD_REMOTE
     bool "Remote thread"
-    default n
+    default y
     select MOD_DEV_REMOTE
+    select MOD_DEV_REMOTE_SBUS
+    select MOD_DEV_REMOTE_DR16
     help
       Enable remote receiver thread.
 
@@ -106,12 +108,8 @@ config TRD_PC
 
 config TRD_TEST
     bool "User test add config"
-    default y
+    default n
     select COM_UART_DMA
-    select MOD_DEV_MOTOR_DJI
-    select CTL_PID
-    select TPC_TO_CAN_TX
-    select ID_MOTOR_PLANT
     help
       Temporary user test switch.
 

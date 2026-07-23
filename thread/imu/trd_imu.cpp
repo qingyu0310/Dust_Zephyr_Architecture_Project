@@ -28,7 +28,7 @@ bool thread_start()
     return imu_.Start(5);
 }
 
-REGISTER_INIT(thread_init,  Module, High, "imu_init");
+REGISTER_INIT(thread_init,  Module,     High, "imu_init");
 REGISTER_INIT(thread_start, ThreadLate, High, "imu_start");
 
 } // namespace thread::imu

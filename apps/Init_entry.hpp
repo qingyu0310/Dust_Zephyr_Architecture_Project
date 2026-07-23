@@ -16,8 +16,8 @@
 /**
  * @brief 初始化阶段
  *
- * Bsp      板级基础能力：时钟、GPIO、总线、中断
- * Module   设备/算法模块：IMU、遥控、电机对象
+ * Bsp          板级基础能力：时钟、GPIO、总线、中断
+ * Module       设备/算法模块：IMU、遥控、电机对象
  * ThreadEarly  早期线程
  * ThreadMid    中期线程
  * ThreadLate   后期线程
@@ -71,7 +71,7 @@ struct InitEntry
  * @param level_   InitLevel 枚举值（不带 InitLevel::）
  * @param name_    组件标识，打印用
  */
-#define REGISTER_INIT(fn, stage_, level_, name_)                                    \
+#define REGISTER_INIT(fn, stage_, level_, name_)                                \
     static const InitEntry kInitEntry_##fn                                      \
     __attribute__((used, __section__(".user_init"))) = {                        \
         fn, InitStage::stage_, InitLevel::level_, name_                         \

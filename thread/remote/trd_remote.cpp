@@ -16,7 +16,7 @@
 #include "uart.hpp"
 #include <zephyr/logging/log.h>
 
-LOG_MODULE_REGISTER(remote, LOG_LEVEL_INF);
+LOG_MODULE_REGISTER(trd_remote, LOG_LEVEL_INF);
 
 namespace thread::remote {
 
@@ -27,30 +27,35 @@ static ::remote::Remote remote_ {};
  */
 bool thread_init()
 {
-    static UartDma rx {};
-    RxStream::Config cfg {};
+    static UartDma      rx {};
+    constexpr uint16_t  kTimeout = 1000;
 
-    constexpr uint16_t kBufferSize = 128;
-    constexpr uint16_t kTimeour    = 1000;
-
-    cfg.buf_size   = kBufferSize;
-    cfg.rx_timeout = kTimeour;
+    UartDma::Config cfg = {
+        .line_cfg = {
+            .baudrate    = 100000,
+            .parity      = UART_CFG_PARITY_EVEN,
+            .stop_bits   = UART_CFG_STOP_BITS_2,
+            .data_bits   = UART_CFG_DATA_BITS_8,
+            .flow_ctrl   = UART_CFG_FLOW_CTRL_NONE,
+        },
+        .base_cfg = { .rx_timeout = kTimeout },
+    };
 
     if (!rx.Init(DEVICE_DT_GET(DT_ALIAS(remote_uart)), cfg)) {
         LOG_ERR("uart init failed");
         return false;
     }
 
-    remote_.Init(RemoteType::Auto, rx);
+    remote_.Init(rx);
     return true;
 }
 
 bool thread_start()
 {
-    return remote_.Start(5);
+    return remote_.Start(ThreadPrio::High);
 }
 
-REGISTER_INIT(thread_init,  Module, High, "remote_init");
-REGISTER_INIT(thread_start, ThreadLate, High, "remote_start");
+REGISTER_INIT(thread_init,  Bsp,         High, "remote_init");
+REGISTER_INIT(thread_start, ThreadEarly, High, "remote_start");
 
 } // namespace thread::remote

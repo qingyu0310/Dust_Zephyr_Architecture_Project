@@ -43,10 +43,25 @@
     status = "okay";
 };
 
+&gpioy {
+    pinctrl-0 = <&pinmux_gpioy>;
+    pinctrl-names = "default";
+    status = "okay";
+};
+
 &mcan0 {
     pinctrl-0 = <&pinmux_mcan0_txrx>;
     pinctrl-names = "default";
     bitrate = <1000000>;
+    status = "okay";
+};
+
+&uart1 {
+    current-speed = <100000>;
+    pinctrl-0 = <&pinmux_uart1>;
+    pinctrl-names = "default";
+    dmas = <&hdma 6 0x16>, <&hdma 7 0x17>;
+    dma-names = "rx", "tx";
     status = "okay";
 };
 

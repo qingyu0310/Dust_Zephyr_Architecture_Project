@@ -17,7 +17,7 @@
 /**
  * @brief 线程优先级（Zephyr 数值越小优先级越高）
  */
-enum class ThreadPrio : int
+enum class ThreadPrio : uint8_t
 {
     Highest     = 1,
     VeryHigh    = 2,
@@ -37,12 +37,11 @@ template<uint32_t StackSize = 1024>
 class Thread final
 {
 public:
-    void Start(k_thread_entry_t entry, ThreadPrio prio = ThreadPrio::Normal,
-               void* p1 = nullptr)
+    void Start(k_thread_entry_t entry, ThreadPrio prio = ThreadPrio::Normal, void* p1 = nullptr)
     {
         k_thread_create(&thread_, stack_, K_THREAD_STACK_SIZEOF(stack_),
                         entry, p1, nullptr, nullptr,
-                        static_cast<int>(prio), 0, K_NO_WAIT);
+                        static_cast<uint8_t>(prio), 0, K_NO_WAIT);
     }
 
 private:
