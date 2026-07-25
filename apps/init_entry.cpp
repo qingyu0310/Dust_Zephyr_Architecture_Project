@@ -28,11 +28,16 @@ static constexpr struct
 } 
 // 线程分三级启动——部分线程依赖其他线程先就绪（如 CAN TX 需早于其他线程）
 StageMap[] {
-    {InitStage::Bsp,         "BSP"},
-    {InitStage::ThreadEarly, "ThreadEarly"},
-    {InitStage::Module,      "Module"},
-    {InitStage::ThreadMid,   "ThreadMid"},
-    {InitStage::ThreadLate,  "ThreadLate"},
+    {InitStage::PreInit,     "PreInit"},
+    {InitStage::PreThread,   "PreThread"},
+    {InitStage::EarlyInit,   "EarlyInit"},
+    {InitStage::EarlyThread, "EarlyThread"},
+    {InitStage::MidInit,     "MidInit"},
+    {InitStage::MidThread,   "MidThread"},
+    {InitStage::LateInit,    "LateInit"},
+    {InitStage::LateThread,  "LateThread"},
+    {InitStage::AppInit,     "AppInit"},
+    {InitStage::AppThread,   "AppThread"},
 };
 
 /**
@@ -48,7 +53,7 @@ static const char* StageName(InitStage stage)
             return m.name;
         }
     }
-    return "?";
+    return "unknown";
 }
 
 static constexpr struct FailAction {
@@ -116,28 +121,44 @@ static void RunStage(InitStage stage)
             HandleInitFail(*e);
         }
     }
-
     printk("\n");
 }
 
 /**
  * @brief 系统启动入口
  *
- * 顺序：Bsp → 早期线程 → Module → 中期线程 → 后期线程。
- * 早期线程在 Module 之前启动，使 CAN 等总线通信先就绪。
+ * 顺序：PreInit/PreThread → EarlyInit/EarlyThread → MidInit/MidThread
+ *       → LateInit/LateThread → AppInit/AppThread。
+ * 每对先执行 Init（初始化对象），再启动对应的 Thread（线程循环）。
  * 由 main() 调用。
  */
 void System_Startup(void)
 {
-    RunStage(InitStage::Bsp);
-    k_msleep(1000);
-    RunStage(InitStage::ThreadEarly);
-    k_msleep(1000);
-    RunStage(InitStage::Module);
-    k_msleep(1000);
-    RunStage(InitStage::ThreadMid);
-    k_msleep(1000);
-    RunStage(InitStage::ThreadLate);
+    constexpr uint16_t kNormalStageDelayMs = 500;
+
+    RunStage(InitStage::PreInit);
+    k_msleep(kNormalStageDelayMs);
+    RunStage(InitStage::PreThread);
+    k_msleep(kNormalStageDelayMs);
+
+    RunStage(InitStage::EarlyInit);
+    k_msleep(kNormalStageDelayMs);
+    RunStage(InitStage::EarlyThread);
+    k_msleep(kNormalStageDelayMs);
+
+    RunStage(InitStage::MidInit);
+    k_msleep(kNormalStageDelayMs);
+    RunStage(InitStage::MidThread);
+    k_msleep(kNormalStageDelayMs);
+
+    RunStage(InitStage::LateInit);
+    k_msleep(kNormalStageDelayMs);
+    RunStage(InitStage::LateThread);
+    k_msleep(kNormalStageDelayMs);
+
+    RunStage(InitStage::AppInit);
+    k_msleep(kNormalStageDelayMs);
+    RunStage(InitStage::AppThread);
 }
 
 

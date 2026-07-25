@@ -39,7 +39,7 @@ bool thread_start()
     return true;
 }
 
-REGISTER_INIT(thread_init,  Module, Low, "tflm_init");
-REGISTER_INIT(thread_start, ThreadLate, Low, "tflm_start");
+REGISTER_INIT(thread_init,  AppInit,   Low, "tflm_init");
+REGISTER_INIT(thread_start, AppThread, Low, "tflm_start");
 
 } // namespace thread::ml

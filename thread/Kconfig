@@ -4,6 +4,7 @@ rsource "../../drivers/Kconfig"
 rsource "../../algorithm/Kconfig"
 rsource "../../modules/Kconfig"
 rsource "../../topic/Kconfig"
+rsource "../../cmd/Kconfig"
 
 # ============================================================================
 
@@ -61,10 +62,9 @@ config TRD_CAN_TX
 
 config TRD_REMOTE
     bool "Remote thread"
-    default y
+    default n
     select MOD_DEV_REMOTE
-    select MOD_DEV_REMOTE_SBUS
-    select MOD_DEV_REMOTE_DR16
+    select MOD_DEV_REMOTE_AUTO
     help
       Enable remote receiver thread.
 
@@ -108,8 +108,9 @@ config TRD_PC
 
 config TRD_TEST
     bool "User test add config"
-    default n
+    default y
     select COM_UART_DMA
+    select CMD_SHELL_VAR
     help
       Temporary user test switch.
 

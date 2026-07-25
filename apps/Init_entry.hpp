@@ -16,19 +16,19 @@
 /**
  * @brief 初始化阶段
  *
- * Bsp          板级基础能力：时钟、GPIO、总线、中断
- * Module       设备/算法模块：IMU、遥控、电机对象
- * ThreadEarly  早期线程
- * ThreadMid    中期线程
- * ThreadLate   后期线程
  */
 enum class InitStage : uint8_t
 {
-    Bsp         = 0,
-    Module      = 1,
-    ThreadEarly = 2,
-    ThreadMid   = 3,
-    ThreadLate  = 4,
+    PreInit     = 0,     // 预初始化
+    PreThread   = 1,     // 预初始化线程
+    EarlyInit   = 2,     // 早期初始化
+    EarlyThread = 3,     // 早期初始化线程
+    MidInit     = 4,     // 中期初始化
+    MidThread   = 5,     // 中期初始化线程
+    LateInit    = 6,     // 后期初始化
+    LateThread  = 7,     // 后期初始化线程
+    AppInit     = 8,     // 应用初始化
+    AppThread   = 9,     // 应用初始化线程
 };
 
 /**
@@ -75,4 +75,4 @@ struct InitEntry
     static const InitEntry kInitEntry_##fn                                      \
     __attribute__((used, __section__(".user_init"))) = {                        \
         fn, InitStage::stage_, InitLevel::level_, name_                         \
-    }
+}

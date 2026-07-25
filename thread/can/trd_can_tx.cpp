@@ -69,7 +69,7 @@ bool thread_start()
     return true;
 }
 
-REGISTER_INIT(thread_init,  Bsp,         High, "can_init");
-REGISTER_INIT(thread_start, ThreadEarly, High, "can_start");
+REGISTER_INIT(thread_init,  PreInit,    High, "can_init");
+REGISTER_INIT(thread_start, PreThread,  High, "can_start");
 
 } // namespace thread::can

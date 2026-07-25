@@ -20,15 +20,15 @@ static ::imu::ImuManager imu_ {};
 
 bool thread_init()
 {
-    return imu_.Init(::imu::ImuStartMode::AutoIdent);
+    return imu_.Init(::imu::ImuStartMode::Normal);
 }
 
 bool thread_start()
 {
-    return imu_.Start(5);
+    return imu_.Start(ThreadPrio::High);
 }
 
-REGISTER_INIT(thread_init,  Module,     High, "imu_init");
-REGISTER_INIT(thread_start, ThreadLate, High, "imu_start");
+REGISTER_INIT(thread_init,  EarlyInit,   High, "imu_init");
+REGISTER_INIT(thread_start, EarlyThread, High, "imu_start");
 
 } // namespace thread::imu
