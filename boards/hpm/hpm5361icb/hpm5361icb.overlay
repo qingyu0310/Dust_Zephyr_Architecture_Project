@@ -9,6 +9,7 @@
         remote-uart = &uart4;
         imu-spi     = &icm42688p;
         imu-pwm     = &imu_pwm;
+        buzzer-pwm  = &buzzer_pwm;
         pc-usb      = &cherryusb_usb0;
     };
 
@@ -22,6 +23,12 @@
         imu_pwm: imu_pwm {
             pwms = <&pwm0 7 PWM_USEC(1000) PWM_POLARITY_NORMAL>;
             label = "ICM42688P Heater";
+            status = "okay";
+        };
+
+        buzzer_pwm: buzzer_pwm {
+            pwms = <&pwm0 5 PWM_USEC(500) PWM_POLARITY_NORMAL>;
+            label = "Buzzer";
             status = "okay";
         };
     };
@@ -107,7 +114,7 @@ cherryusb_usb0: &usb0 {
 };
 
 &pwm0 {
-    pinctrl-0 = <&pinmux_pwm0_p7>;
+    pinctrl-0 = <&pinmux_pwm0_p5>, <&pinmux_pwm0_p7>;
     pinctrl-names = "default";
     period-init = <1000>;
     dead-zone-in-half-cycle = <0>;

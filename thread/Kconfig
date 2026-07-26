@@ -106,6 +106,22 @@ config TRD_PC
 
 # ============================================================================
 
+config USE_CMD_SHELL
+    bool "Shell debug thread"
+    default y
+    select CMD_SHELL_VAR
+    help
+      Shell debug variable thread — l/g/s commands via UART.
+
+config USE_CMD_BUZZER
+    bool "Buzzer control"
+    default n
+    select CMD_BUZZER
+    help
+      Buzzer control — PWM beep via cmd/buzzer.
+
+# ============================================================================
+
 config TRD_TEST
     bool "User test add config"
     default y

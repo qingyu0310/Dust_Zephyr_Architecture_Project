@@ -11,6 +11,7 @@
 
 #include "Init_entry.hpp"
 #include "System_startup.h"
+#include "buzzer.hpp"
 #include "zephyr/sys/printk.h"
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
@@ -95,7 +96,7 @@ static void HandleInitFail(const InitEntry& entry)
     }
 
     if (halt) {
-        while (1) {}
+        EXEC_BUZZER_ERR(nullptr);
     }
 }
 
@@ -140,21 +141,25 @@ void System_Startup(void)
     k_msleep(kNormalStageDelayMs);
     RunStage(InitStage::PreThread);
     k_msleep(kNormalStageDelayMs);
+    EXEC_BUZZER_SHORT();
 
     RunStage(InitStage::EarlyInit);
     k_msleep(kNormalStageDelayMs);
     RunStage(InitStage::EarlyThread);
     k_msleep(kNormalStageDelayMs);
+    EXEC_BUZZER_SHORT();
 
     RunStage(InitStage::MidInit);
     k_msleep(kNormalStageDelayMs);
     RunStage(InitStage::MidThread);
     k_msleep(kNormalStageDelayMs);
+    EXEC_BUZZER_SHORT();
 
     RunStage(InitStage::LateInit);
     k_msleep(kNormalStageDelayMs);
     RunStage(InitStage::LateThread);
     k_msleep(kNormalStageDelayMs);
+    EXEC_BUZZER_SHORT();
 
     RunStage(InitStage::AppInit);
     k_msleep(kNormalStageDelayMs);
