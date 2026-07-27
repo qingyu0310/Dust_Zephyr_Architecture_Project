@@ -97,6 +97,7 @@ static void HandleInitFail(const InitEntry& entry)
 
     if (halt) {
         EXEC_BUZZER_ERR(nullptr);
+        while (1) {}
     }
 }
 

@@ -51,9 +51,9 @@ struct CanRxEntry {
 #define _CAN_RX_STR(x)  #x
 #define _CAN_RX_STR2(x) _CAN_RX_STR(x)
 
-#define CAN_RX_HANDLER(bus_, id_, handler_, name_)                               \
-    static const CanRxEntry kCanRxEntry_##bus_##_##name_                          \
-    __attribute__((used, __section__(".can_rx"                                  \
+#define CAN_RX_HANDLER(bus_, id_, handler_, name_)                                  \
+    static const CanRxEntry kCanRxEntry_##bus_##_##name_                            \
+    __attribute__((used, __section__(".can_rx"                                      \
         _CAN_RX_STR2(bus_)))) = { id_, handler_ }
 
         

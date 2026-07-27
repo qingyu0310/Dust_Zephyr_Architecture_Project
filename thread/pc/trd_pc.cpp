@@ -20,28 +20,37 @@
 namespace thread::pc {
 
 static Thread<2048> thread_ {};
-static Usb usb_ {};
+static usb::Usb usb_ {};
 
 static void Task(void*, void*, void*)
 {
-    constexpr uint8_t send[] = "tick\r\n";
+    constexpr uint8_t start[] = "start\r\n";
+    uint8_t rx_buf[512];
+
+    // 通知 PC USB 就绪
+    usb_.Send(start, sizeof(start) - 1);
+
     for (;;)
     {
-        usb_.Send(send, sizeof(send));
-        k_sleep(K_MSEC(1000));
+        // 阻塞等数据，收到即回传
+        k_sem_take(&usb_.sem_, K_FOREVER);
+        uint16_t n = usb_.Read(rx_buf, sizeof(rx_buf));
+        if (n > 0) {
+            usb_.Send(rx_buf, n);
+        }
     }
 }
 
 bool thread_init()
 {
-    Usb::Config cfg {};
-    cfg.busid = 0;
-    cfg.reg_base = DT_REG_ADDR(DT_NODELABEL(cherryusb_usb0));
-    cfg.buf_size = 512;
+    usb::Usb::Config cfg {};
+    cfg.busid    = 0;
+    cfg.reg_base = DT_REG_ADDR(DT_NODELABEL(qingyuusb_usb0));
+    cfg.irq_num  = DT_IRQN(DT_NODELABEL(qingyuusb_usb0));
 
     while (!usb_.Init(cfg)) {
-        // printf
-    };
+        k_msleep(100);
+    }
     return true;
 }
 
@@ -51,11 +60,11 @@ bool thread_start()
         return false;
     }
 
-    thread_.Start(Task, ThreadPrio::Low);
+    thread_.Start(Task, ThreadPrio::High);
     return true;
 }
 
-REGISTER_INIT(thread_init,  LateInit,   Low, "pc_init");
-REGISTER_INIT(thread_start, LateThread, Low, "pc_start");
+REGISTER_INIT(thread_init,  PreInit,    High, "pc_init");
+REGISTER_INIT(thread_start, LateThread, High, "pc_start");
 
 } // namespace thread::pc

@@ -8,6 +8,33 @@ rsource "../../cmd/Kconfig"
 
 # ============================================================================
 
+# =================       功能配置区 — 各模块开关       ========================
+
+config USE_CMD_SHELL
+    bool "Shell debug thread"
+    default n
+    select CMD_SHELL_VAR
+    help
+      Shell debug variable thread — l/g/s commands via UART.
+
+config USE_CMD_BUZZER
+    bool "Buzzer control"
+    default n
+    select CMD_BUZZER
+    help
+      Buzzer control — PWM beep via cmd/buzzer.
+
+config USE_CMD_FLASH
+    bool "SPI Flash"
+    default n
+    select CMD_FLASH
+    help
+      SPI NOR Flash read/write/erase via cmd/flash.
+
+# ============================================================================
+
+# =================               TRD_GPIO                ====================
+
 config TRD_GPIO
     bool "GPIO thread task"
     default y
@@ -17,6 +44,8 @@ config TRD_GPIO
       Enable the GPIO/output indicator thread.
 
 # ============================================================================
+
+# =================               TRD_CHASSIS             ====================
 
 config TRD_CHASSIS
     bool "Chassis control thread"
@@ -38,6 +67,8 @@ config USE_POWERMETER
 
 # ============================================================================
 
+# =================               TRD_GIMBAL               ====================
+
 config TRD_GIMBAL
     bool "Gimbal control thread"
     default n
@@ -50,6 +81,8 @@ config TRD_GIMBAL
 
 # ============================================================================
 
+# =================               TRD_CAN_TX              ====================
+
 config TRD_CAN_TX
     bool "CAN TX thread"
     default n
@@ -60,6 +93,8 @@ config TRD_CAN_TX
 
 # ============================================================================
 
+# =================               TRD_REMOTE              ====================
+
 config TRD_REMOTE
     bool "Remote thread"
     default n
@@ -69,6 +104,8 @@ config TRD_REMOTE
       Enable remote receiver thread.
 
 # ============================================================================
+
+# =================               TRD_IMU                 ====================
 
 config TRD_IMU
     bool "IMU thread"
@@ -88,6 +125,8 @@ config IMU_IDENTIFICATION
 
 # ============================================================================
 
+# =================               TRD_TFLM                ====================
+
 config TRD_TFLM
     bool "TFLM inference thread"
     default n
@@ -96,6 +135,8 @@ config TRD_TFLM
       Enable TFLM inference test thread.
 
 # ============================================================================
+
+# =================               TRD_PC                  ====================
 
 config TRD_PC
     bool "PC communication thread"
@@ -106,27 +147,12 @@ config TRD_PC
 
 # ============================================================================
 
-config USE_CMD_SHELL
-    bool "Shell debug thread"
-    default y
-    select CMD_SHELL_VAR
-    help
-      Shell debug variable thread — l/g/s commands via UART.
-
-config USE_CMD_BUZZER
-    bool "Buzzer control"
-    default n
-    select CMD_BUZZER
-    help
-      Buzzer control — PWM beep via cmd/buzzer.
-
-# ============================================================================
+# =================               TRD_TEST                ====================
 
 config TRD_TEST
     bool "User test add config"
     default y
-    select COM_UART_DMA
-    select CMD_SHELL_VAR
+    select COM_USB
     help
       Temporary user test switch.
 

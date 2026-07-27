@@ -10,7 +10,8 @@
         imu-spi     = &icm42688p;
         imu-pwm     = &imu_pwm;
         buzzer-pwm  = &buzzer_pwm;
-        pc-usb      = &cherryusb_usb0;
+        flash-spi   = &w25q128;
+        pc-usb      = &qingyuusb_usb0;
     };
 
     chosen {
@@ -92,10 +93,24 @@
     status = "okay";
 };
 
-cherryusb_usb0: &usb0 {
-    compatible = "hpmicro,hpm-cherryusb";
+qingyuusb_usb0: &usb0 {
+    compatible = "hpmicro,hpm-qingyuusb";
     clk-name = <CLOCK_USB0>;
     status = "okay";
+};
+
+&spi1 {
+    pinctrl-0 = <&pinmux_spi1>;
+    pinctrl-names = "default";
+    clocks = <&clk CLOCK_SPI1 CLK_SRC_OSC24M 1>;
+    status = "okay";
+
+    w25q128: w25q128@0 {
+        compatible = "winbond,w25q128";
+        reg = <0>;
+        spi-max-frequency = <50000000>;
+        status = "okay";
+    };
 };
 
 &spi2 {
