@@ -48,8 +48,8 @@ struct CanRxEntry {
  * @endcode
  */
 // 两级字符串化：先展开宏参数（TEST_RX→1），再转字符串（1→"1"）
-#define _CAN_RX_STR(x)  #x
-#define _CAN_RX_STR2(x) _CAN_RX_STR(x)
+#define _CAN_RX_STR(x)      #x
+#define _CAN_RX_STR2(x)     _CAN_RX_STR(x)
 
 #define CAN_RX_HANDLER(bus_, id_, handler_, name_)                                  \
     static const CanRxEntry kCanRxEntry_##bus_##_##name_                            \

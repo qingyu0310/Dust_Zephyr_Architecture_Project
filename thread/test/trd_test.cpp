@@ -14,7 +14,6 @@
 #include "usb.hpp"
 #include <zephyr/devicetree.h>
 #include <zephyr/logging/log.h>
-#include <string.h>
 
 #pragma message "Compiling Thread/Test"
 
@@ -27,49 +26,18 @@ static Thread<2048> thread_ {};
 
 static void Task(void*, void*, void*)
 {
-    constexpr uint8_t start[] = "start\r\n";
-    uint8_t txbuf[512];
-    uint8_t rx_buf[512];
-    bool tx_bench = false;
-    for (int i = 0; i < 512; i++) txbuf[i] = (uint8_t)i;
-
-    usb_.Send(start, sizeof(start) - 1);
+    constexpr uint8_t tick[]  = "tick\r\n";
 
     for (;;)
     {
-        if (!tx_bench) {
-            k_sem_take(&usb_.sem_, K_FOREVER);
-        }
-
-        if (tx_bench) {
-            for (int i = 0; i < 50; i++) {
-                usb_.Send(txbuf, sizeof(txbuf));
-            }
-            uint16_t n = usb_.Read(rx_buf, sizeof(rx_buf));
-            if (n >= 4 && memcmp(rx_buf, "stop", 4) == 0) {
-                usb_.Send((uint8_t*)"[BENCH] tx_done\r\n", 17);
-                tx_bench = false;
-            }
-            continue;
-        }
-
-        uint16_t n = usb_.Read(rx_buf, sizeof(rx_buf));
-        if (n == 0) continue;
-
-        if (n >= 9 && memcmp(rx_buf, "bench_tx", 8) == 0) {
-            tx_bench = true;
-            usb_.Send(rx_buf, n);
-            continue;
-        }
-
-        usb_.Send(rx_buf, n);
+        usb_.Send(tick, sizeof(tick) - 1);
+        k_msleep(1000);
     }
 }
 
 bool thread_init()
 {
-    usb::Usb::Config cfg {};
-    cfg.busid       = 0;
+    UsbHal::Config cfg {};
     cfg.reg_base    = DT_REG_ADDR(DT_NODELABEL(qingyuusb_usb0));
     cfg.irq_num     = DT_IRQN(DT_NODELABEL(qingyuusb_usb0));
 
