@@ -423,6 +423,6 @@ bool thread_start()
 }
 
 REGISTER_INIT(thread_init,  MidInit,    Mid, "chassis_init");
-REGISTER_INIT(thread_start, MidThread,  Mid, "chassis_start");
+REGISTER_THREAD(thread_start, MidThread,  Mid, "chassis_start");
 
 } // namespace thread::chassis

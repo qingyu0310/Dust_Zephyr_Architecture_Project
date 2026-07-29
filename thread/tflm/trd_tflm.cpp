@@ -40,6 +40,6 @@ bool thread_start()
 }
 
 REGISTER_INIT(thread_init,  AppInit,   Low, "tflm_init");
-REGISTER_INIT(thread_start, AppThread, Low, "tflm_start");
+REGISTER_THREAD(thread_start, AppThread, Low, "tflm_start");
 
 } // namespace thread::ml

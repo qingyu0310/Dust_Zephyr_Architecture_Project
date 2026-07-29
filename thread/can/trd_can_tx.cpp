@@ -70,6 +70,6 @@ bool thread_start()
 }
 
 REGISTER_INIT(thread_init,  PreInit,    High, "can_init");
-REGISTER_INIT(thread_start, PreThread,  High, "can_start");
+REGISTER_THREAD(thread_start, PreThread,  High, "can_start");
 
 } // namespace thread::can

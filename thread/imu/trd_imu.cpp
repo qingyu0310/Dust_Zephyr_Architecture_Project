@@ -28,7 +28,7 @@ bool thread_start()
     return imu_.Start(ThreadPrio::High);
 }
 
-REGISTER_INIT(thread_init,  EarlyInit,   High, "imu_init");
-REGISTER_INIT(thread_start, EarlyThread, High, "imu_start");
+REGISTER_INIT  (thread_init,  EarlyInit,  High, "imu_init");
+REGISTER_THREAD(thread_start, LateThread, High, "imu_start");
 
 } // namespace thread::imu

@@ -1,10 +1,10 @@
 # Application thread and feature configuration.
 
-rsource "../../drivers/Kconfig"
-rsource "../../algorithm/Kconfig"
-rsource "../../modules/Kconfig"
-rsource "../../topic/Kconfig"
-rsource "../../cmd/Kconfig"
+rsource "../drivers/Kconfig"
+rsource "../algorithm/Kconfig"
+rsource "../modules/Kconfig"
+rsource "../topic/Kconfig"
+rsource "../cmd/Kconfig"
 
 # ============================================================================
 
@@ -109,7 +109,7 @@ config TRD_REMOTE
 
 config TRD_IMU
     bool "IMU thread"
-    default n
+    default y
     select MOD_DEV_IMU
     select TPC_IMU_TO
     help
@@ -151,7 +151,7 @@ config TRD_PC
 
 config TRD_TEST
     bool "User test add config"
-    default y
+    default n
     select COM_USB
     help
       Temporary user test switch.

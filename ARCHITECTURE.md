@@ -2,131 +2,186 @@
 
 ## 职责
 
-可移植项目单元。嵌入到框架中组成完整系统。用户主要在这一层完成一个嵌入式应用。
+`project/` 是当前工程的项目装配层。它负责把框架层已经提供的能力组合成某一块板、某一组线程和某一个具体应用。
 
-这层最灵活的点是：在 `drivers`、`modules`、`algorithm`、`topic` 这些框架层能力已经覆盖需求的前提下，新建项目或移植项目，原则上主要只需要修改 `project/`。
+现在项目差异主要收敛在：
 
-也就是说，项目差异应尽量收敛在：
+- `boards/`：板级设备树、Kconfig 覆写和烧录配置；
+- `thread/`：当前项目启用哪些 RTOS 线程，以及这些线程如何组合模块、topic 和算法。
 
-- `apps/`：启动组织
-- `boards/`：板级绑定
-- `thread/`：业务线程装配
-
-而框架层不应该随着每个新项目一起改动。
+系统入口、阶段式启动、初始化表遍历和公共中断分发入口已经上移到顶层 `init/`。因此 `project/` 不再持有 `apps/` 目录，也不再负责维护中央启动器。
 
 ## 边界
 
 | 管 | 不管 |
-|----|------|
-| 系统入口和启动编排 | 不包含硬件驱动 |
-| 板级配置（DTS overlay、Kconfig、烧录脚本） | 不包含算法实现 |
-| RTOS 线程逻辑 | 不包含设备管理器类定义 |
-| 组合各层模块完成功能 | 不直接操作寄存器 |
+| --- | --- |
+| 板级配置、alias、overlay、board `.conf` | 不实现底层驱动 |
+| 当前项目有哪些线程 | 不定义通用启动机制 |
+| 线程如何实例化模块、订阅 topic、发布 topic | 不实现可复用算法 |
+| 测试线程如何接入实验功能 | 不维护链接段遍历器 |
 
-## 体量取舍
+项目层应该回答：
 
-框架层不断沉淀之后，整体文件数量会增加。
+```text
+这块板上，这个项目，本次镜像要跑哪些业务线程？
+```
 
-它带来的“笨重”主要体现在查找成本：
+不应该回答：
 
-- 文件多；
-- 路径多；
-- 一个功能可能要沿着驱动、模块、topic、线程和配置文件逐层查看；
-- 第一次接触的人不容易立即定位。
+```text
+全工程所有组件如何注册和启动？
+```
 
-这不是运行时笨重，而是架构分层后产生的组织成本。
-
-但对于专门维护一个比赛、一个赛季或一组相近机器的框架来说，这种体量是合适的。
-
-它用更多文件换来了：
-
-- 模块复用；
-- 项目移植；
-- 板级切换；
-- Demo 独立验证；
-- 正式业务与实验代码分离；
-- 后续维护时职责边界清楚。
-
-所以这里的取舍不是追求文件越少越好，而是：
-
-> 文件变多会让查找变重，但只要项目差异收敛在 `project/`，这套体量对于比赛框架维护来说刚刚好。
+这个问题属于 `init/`。
 
 ## 目录结构
 
-```
+```text
 project/
-├── apps/
 ├── boards/
 ├── thread/
 ├── CMakeLists.txt
+├── Kconfig
 ├── README.md
 └── ARCHITECTURE.md
 ```
 
-### apps/
-
-系统入口。`main.c` 只调用 `System_Startup()`；真正的启动顺序由 `Init_entry.cpp` 控制：
-
-`Bsp -> ThreadEarly -> Module -> ThreadMid -> ThreadLate`
-
-每个初始化项通过 `REGISTER_INIT()` 注册到 `.user_init` 段，再按阶段执行。
-
 ### boards/
 
-板级配置。按 `厂商/板型/` 组织，每个板型包含 `.overlay`（设备树引脚映射）、`.conf`（芯片层 Kconfig）、`board.cmake`（烧录脚本）。
-
-### thread/
-
-RTOS 线程。需要独立线程的模块在此创建子目录，不需要线程的模块不在此暴露实例。
-
-统一接口：`namespace thread::xxx { thread_init(); thread_start(uint8_t prio); }`。各线程通过 Kconfig `select` 拉依赖。
-
-`thread/test/` 是一个特殊但正式的项目入口，专门用于 Demo、设备验证、参数实验和临时功能。
-测试线程可以选择已有模块、算法和 topic，接入 Kconfig、CMakeLists 和 `REGISTER_INIT()` 后直接运行。
-验证完成后，稳定能力再沉淀回 `algorithm/`、`modules/`、`topic/` 或正式业务线程。
-
-## 文件规范
-
-### apps/
-
-| 文件 | 内容 |
-|------|------|
-| `Init_entry.cpp` | 阶段式初始化编排 |
-| `System_startup.h` | 初始化函数声明 |
-| `Irq_handlers.cpp` | 中断处理函数 |
-
-### boards/
-
-每板一个目录，包含：
+板级配置按 `厂商/板型/` 组织。每个板型通常包含：
 
 | 文件 | 作用 |
-|------|------|
-| `<board>.overlay` | 设备树引脚映射、alias |
-| `<board>.conf` | SoC 层 Kconfig |
-| `board.cmake` | 烧录脚本路径 |
+| --- | --- |
+| `<board>.overlay` | 设备树引脚映射、alias、pinctrl |
+| `<board>.conf` | SoC 或板级 Kconfig 覆写 |
+| `board.cmake` | 烧录器、OpenOCD 或 runner 配置 |
+
+板级差异应该通过语义 alias 暴露，例如：
+
+```text
+remote-uart
+imu-spi
+imu-pwm
+user-can1
+```
+
+模块和线程不应该因为换板子就改成直接访问 UART3、SPI2 或某个固定 GPIO。
 
 ### thread/
 
-新增线程步骤：
+`thread/` 存放当前项目真正运行的 RTOS 线程。
 
-| 文件 | 内容 |
-|------|------|
-| `trd_xxx.hpp` | `namespace thread::xxx { thread_init(); thread_start(uint8_t prio); }` |
-| `trd_xxx.cpp` | 局部 static 实例 + 实现 |
+线程层负责：
 
-规则：
-- 类声明在模块层的 hpp 中，不在 trd_xxx.hpp 中暴露实现细节
-- `thread_start` 中通过 `IsReady()` 检查后再启动
-- 核心类的 `Start()` 方法内部自带 `ready_` 防呆检查
-- 在 `thread/Kconfig` 中添加开关，`select` 模块依赖
-- 在 `thread/CMakeLists.txt` 中添加 `CONFIG_TRD_XXX` 编译段
-- 在 `apps/Init_entry.cpp` / `Init_entry.hpp` 中补齐对应阶段和初始化项
+- 持有当前项目的 static 实例；
+- 调用模块层 `Init()` 或 `Start()`；
+- 订阅和发布 topic；
+- 组合控制链；
+- 决定线程周期和优先级；
+- 通过注册宏接入 `init/` 启动链。
+
+典型文件结构：
+
+```text
+project/thread/imu/
+├── trd_imu.hpp
+└── trd_imu.cpp
+```
+
+`trd_xxx.hpp` 只暴露线程入口，不暴露模块内部实现细节。类声明和可复用逻辑应该沉淀在 `modules/` 或 `algorithm/`。
+
+## 和 init/ 的关系
+
+`init/` 提供启动框架，`project/thread/` 提供项目线程入口。
+
+典型线程在自己的 `.cpp` 中注册：
+
+```cpp
+#include "Init_entry.hpp"
+
+static bool thread_init()
+{
+    return true;
+}
+
+static bool thread_start()
+{
+    return true;
+}
+
+REGISTER_INIT(thread_init, EarlyInit, High, "foo_init");
+REGISTER_THREAD(thread_start, LateThread, High, "foo_start");
+```
+
+这样新增线程时通常不需要修改：
+
+```text
+src/main.c
+init/Init_entry.cpp
+```
+
+是否编译这个线程由 `project/thread/Kconfig` 和 `project/thread/CMakeLists.txt` 决定；编译进来后，注册项才会进入 `.user_init/.user_thread`。
+
+## 新增线程步骤
+
+新增一个项目线程时，通常按下面顺序处理：
+
+1. 在 `project/thread/<name>/` 下新增 `trd_<name>.hpp/.cpp`。
+2. 在 `.cpp` 中实现 `thread_init()` 和 `thread_start()`。
+3. 使用 `REGISTER_INIT()` / `REGISTER_THREAD()` 注册启动项。
+4. 在 `project/thread/Kconfig` 中添加 `CONFIG_TRD_<NAME>`，并 `select` 需要的模块、驱动、算法和 topic。
+5. 在 `project/thread/CMakeLists.txt` 中按 `CONFIG_TRD_<NAME>` 添加源文件。
+6. 如果需要新设备绑定，在 `project/boards/<vendor>/<board_cfg>/` 中补 overlay 或 `.conf`。
+
+不要为了新增一个普通线程去扩大 `main.c` 或 `init/Init_entry.cpp`。
+
+## thread/test/
+
+`project/thread/test/` 是正式的实验入口，不是临时代码垃圾桶。
+
+它适合：
+
+- 新设备验证；
+- 新协议抓帧；
+- 电机开环；
+- RLS 或模型辨识；
+- 调试变量注册；
+- 新算法试跑；
+- 还没有准备好进入正式业务线程的功能。
+
+验证稳定后，通用能力再沉淀回：
+
+```text
+drivers/
+modules/
+algorithm/
+topic/
+```
 
 ## 依赖关系
 
-`project/` 依赖所有框架层（algorithm、drivers、modules、topic、cmd）。通过 Kconfig 的 `select` 机制拉取实际使用的模块，未被选中的代码不参与编译。
+`project/` 可以依赖框架层：
 
-## 被谁调用
+```text
+drivers/
+modules/
+algorithm/
+topic/
+cmd/
+init/
+```
 
-- 根 CMakeLists.txt 通过 `add_subdirectory(${PROJ_DIR})` 嵌入
-- 框架层完全不依赖 `project/`
+框架层不应该反向依赖某个具体 `project/thread/`。
+
+当前根 `CMakeLists.txt` 会在项目门禁打开时加入：
+
+```text
+drivers/
+algorithm/
+modules/
+topic/
+cmd/
+init/
+project/
+```
+

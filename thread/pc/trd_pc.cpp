@@ -64,7 +64,7 @@ bool thread_start()
     return true;
 }
 
-REGISTER_INIT(thread_init,  PreInit,    High, "pc_init");
-REGISTER_INIT(thread_start, LateThread, High, "pc_start");
+REGISTER_INIT  (thread_init,  PreInit,    High, "pc_init");
+REGISTER_THREAD(thread_start, LateThread, High, "pc_start");
 
 } // namespace thread::pc
