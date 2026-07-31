@@ -19,14 +19,14 @@ config USE_CMD_SHELL
 
 config USE_CMD_BUZZER
     bool "Buzzer control"
-    default n
+    default y
     select CMD_BUZZER
     help
       Buzzer control — PWM beep via cmd/buzzer.
 
 config USE_CMD_FLASH
     bool "SPI Flash"
-    default n
+    default y
     select CMD_FLASH
     help
       SPI NOR Flash read/write/erase via cmd/flash.
@@ -152,7 +152,7 @@ config TRD_PC
 config TRD_TEST
     bool "User test add config"
     default n
-    select COM_USB
+    select DEV_PWM
     help
       Temporary user test switch.
 

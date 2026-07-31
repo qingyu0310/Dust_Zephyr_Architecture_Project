@@ -18,7 +18,7 @@
         zephyr,console = &uart3;
     };
 
-    pwmheaters {
+    pwm {
         compatible = "pwm-leds";
 
         imu_pwm: imu_pwm {
@@ -28,8 +28,20 @@
         };
 
         buzzer_pwm: buzzer_pwm {
-            pwms = <&pwm0 5 PWM_USEC(500) PWM_POLARITY_NORMAL>;
+            pwms = <&pwm0 5 PWM_USEC(1000) PWM_POLARITY_NORMAL>;
             label = "Buzzer";
+            status = "okay";
+        };
+
+        pwm1_p2: pwm1_p2 {
+            pwms = <&pwm1 2 PWM_USEC(1000) PWM_POLARITY_NORMAL>;
+            label = "PWM1 CH2";
+            status = "okay";
+        };
+
+        pwm1_p3: pwm1_p3 {
+            pwms = <&pwm1 3 PWM_USEC(1000) PWM_POLARITY_NORMAL>;
+            label = "PWM1 CH3";
             status = "okay";
         };
     };
@@ -129,7 +141,7 @@ qingyuusb_usb0: &usb0 {
 };
 
 &pwm0 {
-    pinctrl-0 = <&pinmux_pwm0_p5>, <&pinmux_pwm0_p7>;
+    pinctrl-0 = <&pinmux_pwm0_p57>;
     pinctrl-names = "default";
     period-init = <1000>;
     dead-zone-in-half-cycle = <0>;
@@ -139,4 +151,12 @@ qingyuusb_usb0: &usb0 {
 &mtimer {
     compatible = "riscv,machine-timer", "andestech,machine-timer";
     reg-names = "mtime", "mtimecmp";
+};
+
+&pwm1 {
+    pinctrl-0 = <&pinmux_pwm1_p23>;
+    pinctrl-names = "default";
+    period-init = <1000>;
+    dead-zone-in-half-cycle = <0>;
+    status = "okay";
 };
