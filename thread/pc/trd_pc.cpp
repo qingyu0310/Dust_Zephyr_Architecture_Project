@@ -43,7 +43,7 @@ static void Task(void*, void*, void*)
 
 bool thread_init()
 {
-    usb::Usb::Config cfg {};
+    UsbHal::Config cfg {};
     cfg.busid    = 0;
     cfg.reg_base = DT_REG_ADDR(DT_NODELABEL(qingyuusb_usb0));
     cfg.irq_num  = DT_IRQN(DT_NODELABEL(qingyuusb_usb0));

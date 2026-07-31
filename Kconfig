@@ -19,7 +19,7 @@ config USE_CMD_SHELL
 
 config USE_CMD_BUZZER
     bool "Buzzer control"
-    default y
+    default n
     select CMD_BUZZER
     help
       Buzzer control — PWM beep via cmd/buzzer.
