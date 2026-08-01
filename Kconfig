@@ -109,7 +109,7 @@ config TRD_REMOTE
 
 config TRD_IMU
     bool "IMU thread"
-    default y
+    default n
     select MOD_DEV_IMU
     select TPC_IMU_TO
     help
