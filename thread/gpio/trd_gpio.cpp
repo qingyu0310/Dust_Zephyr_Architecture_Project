@@ -14,7 +14,7 @@
 #include "thread.hpp"
 #include "Init_entry.hpp"
 
-#ifdef CONFIG_DEV_GPIO_OUTPUT
+#ifdef CONFIG_DUST_DEV_GPIO_OUTPUT
 
 #include "output.hpp"
 #include "timer.hpp"
@@ -34,10 +34,10 @@ static void Task(void*, void*, void*)
     {
         const int64_t tick_start = k_uptime_get();
 
-        timer.Update();
+        timer.Update();		
 
         timer.Clock(([](){
-            // printk("tick\n");
+            printk("tick\n");
         }));
 
         const int64_t elapsed = k_uptime_get() - tick_start;
@@ -50,7 +50,6 @@ static void Task(void*, void*, void*)
 
 bool thread_init()
 {
-    // led_alert.init(GPIO_GET(led_alert));
     return true;
 }
 
@@ -64,9 +63,10 @@ REGISTER_INIT  (thread_init,  PreInit,   Low, "output_init");
 REGISTER_THREAD(thread_start, PreThread, Low, "output_start");
 
 } // namespace thread::output
-#endif
 
-#ifdef CONFIG_DEV_GPIO_INPUT
+#endif // CONFIG_DUST_DEV_GPIO_OUTPUT
+
+#ifdef CONFIG_DUST_DEV_GPIO_INPUT
 
 #include "input.hpp"
 
@@ -98,4 +98,5 @@ REGISTER_INIT  (thread_init,  EarlyInit,   Low, "input_init");
 REGISTER_THREAD(thread_start, EarlyThread, Low, "input_start");
 
 } // namespace thread::input
-#endif
+
+#endif // CONFIG_DUST_DEV_GPIO_INPUT
