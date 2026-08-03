@@ -42,7 +42,11 @@ set(ZEPHYR_EXTRA_MODULES
   "${FW_ROOT}"
   "${ZEPHYR_USER_DIR}/platform/cmsis"
 )
-set(ZEPHYR_SDK_INSTALL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../zephyr-sdk-0.16.8" CACHE PATH "")
+if(DEFINED ENV{ZEPHYR_SDK_INSTALL_DIR})
+  set(ZEPHYR_SDK_INSTALL_DIR "$ENV{ZEPHYR_SDK_INSTALL_DIR}" CACHE PATH "" FORCE)
+else()
+  set(ZEPHYR_SDK_INSTALL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../zephyr-sdk-0.16.8" CACHE PATH "")
+endif()
 
 # ---- (5) 板级 overlay / conf / board.cmake ---------------------------------
 if(NOT DEFINED BOARD_CFG)
