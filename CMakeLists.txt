@@ -13,7 +13,11 @@ if(DEFINED ENV{SDK_GLUE_DIR})
 else()
   set(SDK_GLUE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../Zephyr_HPMicro/sdk_glue")
 endif()
-set(SDK_GLUE_USER_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../Zephyr_HPMicro/sdk_glue_user")
+if(DEFINED ENV{SDK_GLUE_USER_DIR})
+  set(SDK_GLUE_USER_DIR "$ENV{SDK_GLUE_USER_DIR}")
+else()
+  set(SDK_GLUE_USER_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../Zephyr_HPMicro/sdk_glue_user")
+endif()
 
 # ---- (3) BOARD_ROOT / SOC_ROOT / DTS_ROOT 指向 zephyr_user -----------------
 list(APPEND BOARD_ROOT "${ZEPHYR_USER_DIR}")
