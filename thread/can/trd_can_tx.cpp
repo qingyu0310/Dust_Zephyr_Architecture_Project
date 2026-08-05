@@ -29,6 +29,7 @@ namespace thread::can {
 // k_msgq 内部拷贝数据，多 put 一 get 天然支持多发布者，且满时丢帧不阻塞。
 static Thread<> thread_{};
 static Can user_can1{};
+static Can user_can2{};
 
 static void Task(void*, void*, void*)
 {
@@ -60,6 +61,18 @@ bool thread_init()
         user_can1.SetRxCallback(user_can1_rx_callback);
         LOG_INF("user_can1 ready");
     }
+
+    {
+        const device* dev = DEVICE_DT_GET(DT_ALIAS(user_can2));
+        if (!device_is_ready(dev)) {
+            LOG_ERR("user_can2 not ready");
+            return false;
+        }
+        const can_filter filter { .id = 0, .mask = 0, .flags = 0 };
+        user_can2.Init(dev, filter);
+        user_can2.SetRxCallback(user_can2_rx_callback);
+        LOG_INF("user_can2 ready");
+    }
     return true;
 }
 
@@ -69,7 +82,7 @@ bool thread_start()
     return true;
 }
 
-REGISTER_INIT(thread_init,  PreInit,    High, "can_init");
-REGISTER_THREAD(thread_start, PreThread,  High, "can_start");
+REGISTER_INIT  (thread_init,  EarlyInit,    High, "can_init");
+REGISTER_THREAD(thread_start, EarlyThread,  High, "can_start");
 
 } // namespace thread::can

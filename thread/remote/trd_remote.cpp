@@ -55,7 +55,7 @@ bool thread_start()
     return remote_.Start(ThreadPrio::High);
 }
 
-REGISTER_INIT(thread_init,  PreInit,    High, "remote_init");
-REGISTER_THREAD(thread_start, PreThread,  High, "remote_start");
+REGISTER_INIT  (thread_init,  PreInit,    High, "remote_init");
+REGISTER_THREAD(thread_start, AppThread,  High, "remote_start");
 
 } // namespace thread::remote

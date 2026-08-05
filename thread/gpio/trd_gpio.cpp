@@ -23,21 +23,21 @@ namespace thread::output {
 
 static Thread<2048> thread_{};
 
-static Output led_alert{};
+static Output heart_beat{};
 
 static void Task(void*, void*, void*)
 {
     static constexpr uint32_t kPeriodMs = 1;
-    Timer timer(1000);
+    Timer timer(50);
 
     for (;;)
     {
         const int64_t tick_start = k_uptime_get();
 
-        timer.Update();		
+        timer.Update();
 
         timer.Clock(([](){
-            printk("tick\n");
+            heart_beat.Toggle();
         }));
 
         const int64_t elapsed = k_uptime_get() - tick_start;
@@ -50,7 +50,14 @@ static void Task(void*, void*, void*)
 
 bool thread_init()
 {
-    return true;
+	// PA18 GPIO 心跳（引脚配置见 overlay pinmux_heartbeat）
+	static const gpio_dt_spec heartbeat_spec = {
+		.port     = DEVICE_DT_GET(DT_NODELABEL(gpioa)),
+		.pin      = 18,
+		.dt_flags = 0,          // 方向由 Output::init(默认 GPIO_OUTPUT) 配置
+	};
+
+    return heart_beat.init(heartbeat_spec);
 }
 
 bool thread_start()

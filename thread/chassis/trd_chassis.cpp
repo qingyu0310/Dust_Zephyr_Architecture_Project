@@ -2,8 +2,8 @@
  * @file trd_chassis.cpp
  * @author qingyu
  * @brief 底盘控制线程 — 1ms 周期：遥控 → 运动学 → PID → 功率分配 → 发布
- * @version 0.2
- * @date 2026-05-13
+ * @version 0.3
+ * @date 2026-08-04
  *
  * ## 坐标系
  *
@@ -20,39 +20,27 @@
  *
  * ReadRemote()             读取遥控器 zbus → vx/vy/vw
  *     ↓
- * UpdateTarget()           逆向运动学 + 优劣弧调整
+ * UpdateTarget()           逆向运动学（四角麦轮，参考 Dust）
  *     ↓
- * ControlCalculate()       PID 串联：外环→内环→电流
+ * ControlCalculate()       PID：速度环直接输出电流
  *     ↓
- * PowerAlloc()             功率预测 + 分配（转向组优先）
+ * PowerAlloc()             功率预测 + 分配（全向轮单组）
  *     ↓
  * FramePublish()           组帧 → zbus → can_tx
  *
- * ## 舵轮布局 (N_Wheel = 2)
+ * 逆向运动学（照 Dust：v 轮 = (±vx ± vy)·√2 + ω）：
  *
- *   轮0 (前):  y = +R
- *   轮1 (后):  y = -R
- *
- * ## 待实测的机械参数
- *
- * 以下值当前为占位符，需根据实际底盘测量后修正：
- *
- * | 参数 | 当前值 | 说明 | 备注 |
- * |------|--------|------|------|
- * | kChassisR         | 0.135m    | 舵轮距底盘中心距离 | 需实测 |
- * | kWheelR           | 0.1m      | 轮子半径          | 需实测 |
- * | kGearboxRatio     | 3591/187  | 减速比            | M3508 官方数据，已确认 |
- * | KMaxMoveVelocity  | 0.5m/s    | 最大移动速度       | 调参确定 |
- * | KMaxRotationOmega | 2.0rad/s  | 最大自旋角速度     | 调参确定 |
- * | kTorqueK          | 0.3 N·m/A | C620 转矩常数      | 手册数据，已确认 |
- * | kSteerSign        | -1        | 舵向方向补偿       | 电机安装方向确认后锁定 |
- * | kDriveSign        | +1/-1     | 行进方向补偿       | 电机安装方向确认后锁定 |
+ *   轮0: v = (-vx + vy)·√2 + ω
+ *   轮1: v = (-vx - vy)·√2 + ω
+ *   轮2: v = ( vx - vy)·√2 + ω
+ *   轮3: v = ( vx + vy)·√2 + ω
  *
  * @copyright Copyright (c) 2026
  */
 
-#pragma message "Compiling Thread/Chassis"
-
+#include <cstdio>
+#include "trd_chassis.hpp"
+#include "timer.hpp"
 #include "remote_to.hpp"
 #include "thread.hpp"
 #include "Init_entry.hpp"
@@ -61,203 +49,132 @@
 #include "pid.hpp"
 #include "zephyr/zbus/zbus.h"
 #include "math.h"
+#include "shell.hpp"
+#include <zephyr/logging/log.h>
 
-namespace {
+#pragma message "Compiling Thread/Chassis"
 
-constexpr float kPi   = 3.1415926535f;
-constexpr float kPi_2 = kPi / 2.f;
-constexpr float k2Pi  = 2.f * kPi;
-
-// 角度归一化到 [-π, π)
-float NormalizeAngle(float a)
-{
-    a = fmodf(a, k2Pi);
-    if (a >  kPi) a -= k2Pi;
-    if (a < -kPi) a += k2Pi;
-    return a;
-}
-
-}
+LOG_MODULE_REGISTER(trd_chassis, LOG_LEVEL_INF);
 
 namespace thread::chassis {
 
 using namespace instance::chassis;
 
-static Thread<2048> thread_{};
+static Thread<1024 * 4> thread_{};
 
 // 电机参数
-static constexpr float    kTorqueK          = 0.3f;                             // C6xx 转矩常数 N·m/A
-static constexpr float    kCurrentScale     = 16384.0f / 20.0f;                 // 电流缩放系数
-
-static constexpr uint8_t  kTotalBudget      = 20;                               // 底盘总功率预算 W
-static constexpr float    kChassisR         = 0.135f;                           // 舵轮距车体中心距离
+static constexpr uint8_t  kTotalBudget      = 60;                               // 底盘总功率预算 W
 static constexpr uint16_t kChassisTxId      = 0x200;                            // 底盘can发送id
 
-// 舵轮位置（右手系）
-static constexpr struct { float x, y; } kWheelPos[N_Wheel] = {
-    {0.0f,  0.135f},                                                  // 轮0 (前)
-    {0.0f, -0.135f},                                                  // 轮1 (后)
-};
-
 // 速度限幅
-static constexpr float KMaxMoveVelocity     = 0.5f;                             // 最大移动线速度 m/s
-static constexpr float KMaxRotationOmega    = 2.0f;                             // 最大旋转角速度 rad/s
+static constexpr float KMaxMoveVelocity     = 0.8f;                             // 最大移动线速度 m/s
+static float KMaxRotationOmega    = 3.0f;                             // 最大旋转角速度 rad/s
 
 // 方向补偿（电机安装方向导致编码器正方向与底盘坐标系相反）
-static constexpr int8_t kSteerSign[N_Wheel] = {-1, -1};                 // 舵向
-static constexpr int8_t kDriveSign[N_Wheel] = { 1, -1};                 // 行进
+static constexpr int8_t kDriveSign[N_Wheel] = { 1, 1, 1, 1};    // 行进方向，需实测
 
-// 功率控制器
-static alg::power_ctrl::PowerCtrl<N_Wheel> SteerPwrCtrl {};                     // 转向组
-static alg::power_ctrl::PowerCtrl<N_Wheel> DrivePwrCtrl {};                     // 行进组
+// 控制算法
+static alg::pid::Pid chassis_pid_[N_Wheel] {};
 
-// 运动学中间变量
-static struct { float angle; float velocity; } g_wh_target[N_Wheel] {};
-static float g_k_factor[N_Wheel]     {};                                        // 优劣弧方向因子 (±1)
-static float g_steer_target[N_Wheel] {};                                        // 优劣弧调整后目标角度
+// 功率控制器（全向轮 4 电机单组）
+static alg::power_ctrl::PowerCtrl<N_Wheel> ChassisPwrCtrl {};
+
+// 运动学解算输出：各轮线速度目标
+static float g_wh_target[N_Wheel] {};
+
+// 各轮输出电流（注释 PowerAlloc() 就是 PID 直接输出，未限幅）
+static float g_wh_current[N_Wheel] {};
 
 // 底盘速度指令
 static float g_vx = 0.0f, g_vy = 0.0f, g_vw = 0.0f;
 
-/**
- * @brief 优劣弧判断
- *
- * 当目标角与当前角之差 > 90° 时，将目标角翻转 ±π 并反转行进电机，
- * 使舵轮走短路径而不是转 90° 以上。
- *
- * @param current 当前角度 (rad)
- * @param target  目标角度 (rad)，走劣弧时会被修改
- * @return 方向因子：1.0 (正转) / -1.0 (反转)
- */
-static float OptimalArc(float current, float& target)
-{
-    float err = target - current;
-    err = NormalizeAngle(err);
-
-    if (fabsf(err) > kPi_2) {
-        target = NormalizeAngle(current + err - (err > 0.f ? kPi : -kPi));
-        return -1.f;
-    }
-    return 1.f;
-}
+static float pre_current = 0.0f, late_current = 0.0f;
 
 /**
  * @brief 从 zbus 读取遥控器数据 → vx/vy/vw
  */
 static void ReadRemote()
 {
+	constexpr float kRotationRadius = 0.17;	
+
     static topic::remote_to::Message msg{};
     const zbus_channel *chan = nullptr;
 
     zbus_sub_wait(&sub_remote_to, &chan, K_NO_WAIT);
+	
     if (chan) {
         zbus_chan_read(chan, &msg, K_NO_WAIT);
         g_vx =  msg.chassisx  * KMaxMoveVelocity;
         g_vy =  msg.chassisy  * KMaxMoveVelocity;
-        g_vw = (msg.chassis_mode == topic::remote_to::ChassisMode::Spin) ? KMaxRotationOmega : 0.0f;
+        g_vw = (msg.chassis_mode == topic::remote_to::ChassisMode::Spin) ? KMaxRotationOmega * kRotationRadius: 0.0f;
     }
 }
 
 /**
- * @brief 运动学解算 + 优劣弧调整
+ * @brief 逆向运动学解算
  *
- * 对每个轮子：
- *   1. 逆向运动学：V轮 = V车 + ω × r轮
- *   2. 优劣弧判断：角度差 > 90° 则翻转目标 + 反转行进
+ * 对每轮：v = (±vx ± vy)·√2 + ω，直接映射出底盘 4 轮线速度目标，
+ * 再乘以方向补偿。
  */
 static void UpdateTarget()
 {
-    for (uint8_t wi = 0; wi < N_Wheel; wi++)
-    {
-        // 逆向运动学
-        const float vx_w   = g_vx - g_vw * kWheelPos[wi].y;
-        const float vy_w   = g_vy + g_vw * kWheelPos[wi].x;
-        const float spd    = sqrtf( vx_w * vx_w + vy_w * vy_w );
+    constexpr float kSqrt2 = 1.41421356f;
 
-        if (spd > 1e-6f) {
-            g_wh_target[wi].angle = kSteerSign[wi] * atan2f(vx_w, vy_w);
-            g_wh_target[wi].angle = NormalizeAngle(g_wh_target[wi].angle);
-        }
-        g_wh_target[wi].velocity  = spd * kDriveSign[wi];
+    g_wh_target[0] = (-g_vx + g_vy) * kSqrt2 + g_vw;
+    g_wh_target[1] = (-g_vx - g_vy) * kSqrt2 + g_vw;
+    g_wh_target[2] = ( g_vx - g_vy) * kSqrt2 + g_vw;
+    g_wh_target[3] = ( g_vx + g_vy) * kSqrt2 + g_vw;
 
-        // 优劣弧调整
-        g_k_factor[wi]     = 1.f;
-        g_steer_target[wi] = g_wh_target[wi].angle;
-
-        const auto  snap = chassis_wheel[wi].steer_motor.ReadAll();
-        const float chassis_angle = NormalizeAngle(kSteerSign[wi] * snap.angle);
-
-        g_k_factor[wi] = OptimalArc(chassis_angle, g_steer_target[wi]);
+    for (uint8_t wi = 0; wi < N_Wheel; wi++) {
+        g_wh_target[wi] *= kDriveSign[wi];
     }
 }
 
 /**
- * @brief PID 串联控制
+ * @brief PID 控制
  *
- * 每轮两组串联 PID：
- *   转向：角度环 → 力矩环 → 电流
- *   行进：速度环 → 力矩环 → 电流
+ * 每轮单 PID：速度环直接输出电流。
  */
 static void ControlCalculate()
 {
     for (uint8_t wi = 0; wi < N_Wheel; wi++)
     {
-        // 转向：角度 → 力矩
-        {
-            const auto  snap = chassis_wheel[wi].steer_motor.ReadAll();
-            const float chassis_angle = NormalizeAngle(kSteerSign[wi] * snap.angle);
+        const auto snap = chassis_motor_[wi].ReadAll();
 
-            wheel_alg[wi].steer_angle.SetTarget(g_steer_target[wi]);
-            wheel_alg[wi].steer_angle.SetNow(chassis_angle);
-            const float torque_ref  = wheel_alg[wi].steer_angle. Calc();
-            const float current_ref = wheel_alg[wi].steer_torque.Calc(torque_ref, snap.torque) / kTorqueK;
-            SteerPwrCtrl.SetTarget(wi, current_ref);
-            SteerPwrCtrl.SetMotorData(wi, snap.torque, snap.omega, wheel_alg[wi].steer_angle.GetError());
-        }
+        chassis_pid_[wi].SetTarget(g_wh_target[wi]);
+        chassis_pid_[wi].SetNow(snap.velocity);
+        const float current_ref = chassis_pid_[wi].Calc();
 
-        // 行进：速度 → 力矩
-        {
-            const auto  snap = chassis_wheel[wi].drive_motor.ReadAll();
-            const float chassis_velocity = g_wh_target[wi].velocity * g_k_factor[wi];
+        g_wh_current[wi] = current_ref;      							// 未分配时的电流
 
-            wheel_alg[wi].drive_velocity.SetTarget(chassis_velocity);
-            wheel_alg[wi].drive_velocity.SetNow(snap.velocity);
-            const float torque_ref  = wheel_alg[wi].drive_velocity.Calc();
-            const float current_ref = wheel_alg[wi].drive_torque.  Calc(torque_ref, snap.torque) / kTorqueK;
-            DrivePwrCtrl.SetTarget(wi, current_ref);
-            DrivePwrCtrl.SetMotorData(wi, snap.torque, snap.omega, wheel_alg[wi].drive_velocity.GetError());
-        }
+        ChassisPwrCtrl.SetTarget(wi, current_ref);
+        ChassisPwrCtrl.SetMotorData(wi, snap.torque, snap.omega, chassis_pid_[wi].GetError());
     }
+
+	pre_current = g_wh_current[0];
 }
 
 /**
- * @brief 功率预测 + 分配
+ * @brief 功率预测 + 分配（全向轮单组）
  *
- * 策略：
- *   1. 预测两组电机所需功率
- *   2. 转向组优先分配（上限 80% 总功率）
- *   3. 行进组分剩余
+ * 4 个驱动电机统一预测功率，按总预算分配。
  */
 static void PowerAlloc()
 {
     #if CONFIG_USE_POWERMETER
     {
-        SteerPwrCtrl.SetMeasuredPower(SteerPwrMeter.GetPower());
-        DrivePwrCtrl.SetMeasuredPower(DrivePwrMeter.GetPower());
+        ChassisPwrCtrl.SetMeasuredPower(PwrMeter.GetPower(), PwrMeter.HasFrame());
     }
-    #endif
-    SteerPwrCtrl.Predict();
-    DrivePwrCtrl.Predict();
+    #endif // CONFIG_USE_POWERMETER
+	
+    ChassisPwrCtrl.Predict();
+    ChassisPwrCtrl.Allocate(kTotalBudget);
 
-    constexpr float kTurnRatio = 0.8f;
-    constexpr float kSteerMax = kTotalBudget * kTurnRatio;
-
-    const float SteerPred = SteerPwrCtrl.GetTotalPower();
-    SteerPwrCtrl.Allocate(kSteerMax);               // 转向分配上限 80%，超出部分截断
-
-    // 余额全部分给行进（转向未用满的余量也流入行进）
-    const float DriveBudget = kTotalBudget - MIN(SteerPred, kSteerMax);
-    DrivePwrCtrl.Allocate(DriveBudget);
+    for (uint8_t wi = 0; wi < N_Wheel; wi++) {
+        g_wh_current[wi] = ChassisPwrCtrl.GetLimitedCurrent(wi);		// 分配后的电流
+    }
+	
+	late_current = g_wh_current[0];
 }
 
 /**
@@ -265,22 +182,23 @@ static void PowerAlloc()
  */
 static void FramePublish()
 {
-    topic::to_can_tx::Message msg{};
+	constexpr float kCurrentScale = 16384.0f / 20.0f;                 		// 电流缩放系数
+	topic::to_can_tx::Message msg{};
 
-    auto set_out = [&](uint8_t idx, float current_A) {
+    auto set_out = [&](uint8_t idx, float current_A) 
+	{
         int16_t raw = static_cast<int16_t>(current_A * kCurrentScale);
         msg.data[idx * 2 + 0] = static_cast<uint8_t>(raw >> 8);
         msg.data[idx * 2 + 1] = static_cast<uint8_t>(raw & 0xFF);
     };
-    
+
     for (uint8_t wi = 0; wi < N_Wheel; wi++)
     {
-        set_out(kSteerDataIdx[wi], SteerPwrCtrl.GetLimitedCurrent(wi));
-        set_out(kDriveDataIdx[wi], DrivePwrCtrl.GetLimitedCurrent(wi));
+        set_out(kDriveDataIdx[wi], g_wh_current[wi]);
     }
 
     msg.tx_id = kChassisTxId;
-    k_msgq_put(topic::to_can_tx::chassis_tx, &msg, K_NO_WAIT);
+    // k_msgq_put(chassis_tx, &msg, K_NO_WAIT);
 }
 
 /**
@@ -292,15 +210,23 @@ static void Task(void*, void*, void*)
 {
     static constexpr uint32_t kPeriodMs = 1;
 
+	Timer log_timer(50);
+
     for (;;)
     {
         const int64_t tick_start = k_uptime_get();
+
+		log_timer.Update();
 
         ReadRemote();
         UpdateTarget();
         ControlCalculate();
         PowerAlloc();
         FramePublish();
+
+		log_timer.Clock([](){
+			// printk("%f,%f\n", (double)PwrMeter.GetPower(), (double)ChassisPwrCtrl.GetTotalPowerClamped());
+		});
 
         const int64_t elapsed = k_uptime_get() - tick_start;
         const int64_t remain  = static_cast<int64_t>(kPeriodMs) - elapsed;
@@ -312,117 +238,91 @@ static void Task(void*, void*, void*)
 
 bool thread_init()
 {
+	constexpr float kTorqueK = 0.246f;              	// M3508 减速箱输出轴转矩常数 = 额定2.46N·m/10A（2026-08-05 手册额定数据）
+
     // 功率计初始化
     #if CONFIG_USE_POWERMETER
     {
-        SteerPwrMeter.Init(KSteerPwrMeterId);
-        DrivePwrMeter.Init(KDrivePwrMeterId);
+        PwrMeter.Init(KPwrMeterId);
     }
     #endif
 
-    // 功率预测模型初始化
-
-    // 转向组：角度误差敏感，上限 80%
+    // 功率预测模型初始化（全向轮单组）
     {
-        constexpr float k1 = 1.453009e-07f;
-        constexpr float k2 = 5.171939e-03f;
-        constexpr float k3 = 3.0f;
+        constexpr float k1 = 2.3f;                          // τ² 铜损系数初值（堵转标定 ~2.0，在线单参数收敛，2026-08-05）
+        constexpr float k2 = 0.128f;                       // |ω| 线性损耗系数（架起三档空转标定：低0.112/中0.113/高0.143→合并0.128，2026-08-05）
+        constexpr float k3 = 3.1f;
+
+        // ── v4 模型（fixK2 单参数在线辨 k1）───────────────────────────
+        // 2026-08-05 v4：双参数 RLS 实测反相关（r=-0.84）不收敛——驾驶工况 τ² 与 |ω| 同涨同落，
+        // 共线是工况本质非模型形式。改 fixK2=true 只在线辨 k1（v2 验证单参数收敛）。
+        // K2=0.128 架起三档空转标定冻结，Kt=1.0、K3=3.1 固定。见 doc/功率模型诊断与方案定稿.md。
 
         alg::power_ctrl::PowerCtrl<N_Wheel>::Config cfg{};
-        cfg.k1Init      = k1;
-        cfg.k2Init      = k2;
-        cfg.torqueK     = kTorqueK;
-        cfg.k3          = k3;
-        cfg.errUpper    = 50.0f;
-        cfg.errLower    = 0.01f;
-        cfg.rlsLambda   = 0.999f;
-        cfg.rlsEnable   = IS_ENABLED(CONFIG_USE_POWERMETER);
-        cfg.tauOmegaEnable = cfg.rlsEnable;
-        SteerPwrCtrl.Init(cfg);
+        cfg.k1Init        = k1;
+        cfg.k2Init        = k2;
+        cfg.torqueK       = kTorqueK;
+        cfg.k3            = k3;
+        cfg.errUpper      = 500.0f;
+        cfg.errLower      = 0.001f;
+        cfg.rlsLambda     = 0.99999f;              // RLS 遗忘因子（接近 1 防膨胀；Init 调 SetLambda 生效）
+        cfg.pInit         = 1e-5f;                 // RLS 协方差初值
+        cfg.excMinAbsOmega = 5.0f;                 // 激励门控  Σ|ω| < 5（约均速<1.25rad/s）且
+        cfg.excMinTau2    = 0.05f;                 //          Στ² < 0.05（空载 0.004 之上）时跳过
+        cfg.fixK2         = true;                  // 固定 K2，单参数只辨 k1（双参数共线不收敛）
+        cfg.deadzonePower = 5.0f;                  // RLS 更新死区：|P_meas|<5W 跳过（港科大；可调到 2W）
+        cfg.kFloor        = 1e-5f;                 // 辨识系数下限钳位（防发散为负）
+        cfg.skipNegPower  = true;                  // 停车/急刹预测功率为负时跳过更新，防污染 K1
+        cfg.rlsEnable     = false;                  // 在线单参数辨 k1
+        cfg.tauOmegaEnable= true;                  // τ·ω 机械功率项是模型物理项，始终保留
+        cfg.powerMax      = kTotalBudget;          // 总功率钳制上限
+        ChassisPwrCtrl.Init(cfg);
     }
 
-    // 行进组：拿剩余功率，速度误差范围大
-    {
-        constexpr float k1 = 1.453009e-07f;
-        constexpr float k2 = 5.171939e-03f;
-        constexpr float k3 = 3.5f;
-
-        alg::power_ctrl::PowerCtrl<N_Wheel>::Config cfg{};
-        cfg.k1Init      = k1;
-        cfg.k2Init      = k2;
-        cfg.torqueK     = kTorqueK;
-        cfg.k3          = k3;
-        cfg.errUpper    = 500.0f;
-        cfg.errLower    = 0.001f;
-        cfg.rlsEnable   = IS_ENABLED(CONFIG_USE_POWERMETER);
-        cfg.rlsLambda   = 0.999f;
-        cfg.tauOmegaEnable = cfg.rlsEnable;
-        DrivePwrCtrl.Init(cfg);
-    }
-
-    // 电机 + PID 初始化，每轮先转向后行进
+    // 4 个驱动电机 + PID 初始化
     for (uint8_t wi = 0; wi < N_Wheel; wi++)
     {
-        // 转向组
-        {
-            constexpr float kWheelR       = 0.1f;
-            constexpr float kGearboxRatio = 3591.f / 187.f;
+        constexpr float kWheelR       = 0.077f;
+        constexpr float kGearboxRatio = 268.f / 17.f;
 
-            DjiC6xx::Config motor_cfg {};
-            motor_cfg.rx_id         = kSteerCanId[wi];
-            motor_cfg.wheel_r       = kWheelR;
-            motor_cfg.gearbox_ratio = kGearboxRatio;
+        motor::dji::DjiC620::Config motor_cfg {};
+        motor_cfg.rx_id         = kDriveCanId[wi];
+        motor_cfg.wheel_r       = kWheelR;
+        motor_cfg.gearbox_ratio = kGearboxRatio;
+		motor_cfg.torque_k 		= kTorqueK;
 
-            alg::pid::Pid::Config angle_cfg {};
-            angle_cfg.kp  = 1.0f;
-            angle_cfg.ki  = 0.0f;
-            angle_cfg.kd  = 0.0f;
+        alg::pid::Pid::Config speed_cfg {};
+        speed_cfg.kp  = 10.0f;
+        speed_cfg.ki  = 1.0f;
+        speed_cfg.kd  = 0.0f;
 
-            alg::pid::Pid::Config torque_cfg{};
-            torque_cfg.kp = 0.2f;
-            torque_cfg.ki = 0.0f;
-            torque_cfg.kd = 0.0f;
-
-            chassis_wheel[wi].steer_motor.Init(motor_cfg);
-            wheel_alg[wi].steer_angle    .Init(angle_cfg);
-            wheel_alg[wi].steer_torque   .Init(torque_cfg);
-        }
-
-        // 行进组
-        {
-            constexpr float kWheelR       = 0.1f;
-            constexpr float kGearboxRatio = 3591.f / 187.f;
-
-            DjiC6xx::Config motor_cfg {};
-            motor_cfg.rx_id         = kDriveCanId[wi];
-            motor_cfg.wheel_r       = kWheelR;
-            motor_cfg.gearbox_ratio = kGearboxRatio;
-
-            alg::pid::Pid::Config speed_cfg {};
-            speed_cfg.kp  = 5.0f;
-            speed_cfg.ki  = 0.0f;
-            speed_cfg.kd  = 0.0f;
-
-            alg::pid::Pid::Config torque_cfg{};
-            torque_cfg.kp = 0.5f;
-            torque_cfg.ki = 0.0f;
-            torque_cfg.kd = 0.0f;
-
-            chassis_wheel[wi].drive_motor.Init(motor_cfg);
-            wheel_alg[wi].drive_velocity .Init(speed_cfg);
-            wheel_alg[wi].drive_torque   .Init(torque_cfg);
-        }
+        chassis_motor_[wi].Init(motor_cfg);
+        chassis_pid_[wi].Init(speed_cfg);
     }
+
     return true;
 }
 
 bool thread_start()
 {
-    thread_.Start(Task, ThreadPrio::Normal);
+    thread_.Start(Task, ThreadPrio::High);
     return true;
 }
 
-REGISTER_INIT(thread_init,  MidInit,    Mid, "chassis_init");
-REGISTER_THREAD(thread_start, MidThread,  Mid, "chassis_start");
+REGISTER_INIT  (thread_init,  LateInit,    High, "chassis_init");
+REGISTER_THREAD(thread_start, LateThread,  High, "chassis_start");
+
+// CAN 接收注册（4 轮电机反馈）
+CAN_RX_HANDLER(CHASSIS_RX, kDriveCanId[0], [](uint8_t *data) { chassis_motor_[0].CanCpltRxCallback(data); }, motor0);
+CAN_RX_HANDLER(CHASSIS_RX, kDriveCanId[1], [](uint8_t *data) { chassis_motor_[1].CanCpltRxCallback(data); }, motor1);
+CAN_RX_HANDLER(CHASSIS_RX, kDriveCanId[2], [](uint8_t *data) { chassis_motor_[2].CanCpltRxCallback(data); }, motor2);
+CAN_RX_HANDLER(CHASSIS_RX, kDriveCanId[3], [](uint8_t *data) { chassis_motor_[3].CanCpltRxCallback(data); }, motor3);
+
+// 功率计 CAN 接收注册
+#if CONFIG_USE_POWERMETER
+CAN_RX_HANDLER(PWRMETER_RX, KPwrMeterId, [](uint8_t *data) { PwrMeter.CanCpltRxCallback(data); }, powermeter);
+#endif // CONFIG_USE_POWERMETER
+
+REGISTER_SHELL_VAR("KMaxRotationOmega", KMaxRotationOmega);
 
 } // namespace thread::chassis
