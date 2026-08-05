@@ -14,9 +14,8 @@
 #include "remote.hpp"
 #include "Init_entry.hpp"
 #include "uart.hpp"
-#include <zephyr/logging/log.h>
+#include "log.hpp"
 
-LOG_MODULE_REGISTER(trd_remote, LOG_LEVEL_INF);
 
 namespace thread::remote {
 
@@ -42,7 +41,7 @@ bool thread_init()
     };
 
     if (!rx.Init(DEVICE_DT_GET(DT_ALIAS(remote_uart)), cfg)) {
-        LOG_ERR("uart init failed");
+        DUST_LOG_ERR("uart init failed");
         return false;
     }
 

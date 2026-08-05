@@ -49,12 +49,11 @@
 #include "pid.hpp"
 #include "zephyr/zbus/zbus.h"
 #include "math.h"
-#include "shell.hpp"
-#include <zephyr/logging/log.h>
+#include "var.hpp"
+#include "log.hpp"
 
 #pragma message "Compiling Thread/Chassis"
 
-LOG_MODULE_REGISTER(trd_chassis, LOG_LEVEL_INF);
 
 namespace thread::chassis {
 
@@ -64,7 +63,6 @@ static Thread<1024 * 4> thread_{};
 
 // 电机参数
 static constexpr uint8_t  kTotalBudget      = 60;                               // 底盘总功率预算 W
-static constexpr uint16_t kChassisTxId      = 0x200;                            // 底盘can发送id
 
 // 速度限幅
 static constexpr float KMaxMoveVelocity     = 0.8f;                             // 最大移动线速度 m/s
@@ -182,9 +180,10 @@ static void PowerAlloc()
  */
 static void FramePublish()
 {
-	constexpr float kCurrentScale = 16384.0f / 20.0f;                 		// 电流缩放系数
-	topic::to_can_tx::Message msg{};
+	constexpr float 	kCurrentScale = 16384.0f / 20.0f;                   // 电流缩放系数
+	constexpr uint16_t 	kChassisTxId  = 0x200;                            	// 底盘can发送id
 
+	topic::to_can_tx::Message msg{};
     auto set_out = [&](uint8_t idx, float current_A) 
 	{
         int16_t raw = static_cast<int16_t>(current_A * kCurrentScale);
@@ -249,8 +248,8 @@ bool thread_init()
 
     // 功率预测模型初始化（全向轮单组）
     {
-        constexpr float k1 = 2.3f;                          // τ² 铜损系数初值（堵转标定 ~2.0，在线单参数收敛，2026-08-05）
-        constexpr float k2 = 0.128f;                       // |ω| 线性损耗系数（架起三档空转标定：低0.112/中0.113/高0.143→合并0.128，2026-08-05）
+        constexpr float k1 = 2.3f;                     // τ² 铜损系数初值（堵转标定 ~2.0，在线单参数收敛，2026-08-05）
+        constexpr float k2 = 0.128f;                   // |ω| 线性损耗系数（架起三档空转标定：低 0.112 / 中0.113 / 高0.143 → 合并 0.128，2026-08-05）
         constexpr float k3 = 3.1f;
 
         // ── v4 模型（fixK2 单参数在线辨 k1）───────────────────────────
@@ -259,23 +258,23 @@ bool thread_init()
         // K2=0.128 架起三档空转标定冻结，Kt=1.0、K3=3.1 固定。见 doc/功率模型诊断与方案定稿.md。
 
         alg::power_ctrl::PowerCtrl<N_Wheel>::Config cfg{};
-        cfg.k1Init        = k1;
-        cfg.k2Init        = k2;
-        cfg.torqueK       = kTorqueK;
-        cfg.k3            = k3;
-        cfg.errUpper      = 500.0f;
-        cfg.errLower      = 0.001f;
-        cfg.rlsLambda     = 0.99999f;              // RLS 遗忘因子（接近 1 防膨胀；Init 调 SetLambda 生效）
-        cfg.pInit         = 1e-5f;                 // RLS 协方差初值
-        cfg.excMinAbsOmega = 5.0f;                 // 激励门控  Σ|ω| < 5（约均速<1.25rad/s）且
-        cfg.excMinTau2    = 0.05f;                 //          Στ² < 0.05（空载 0.004 之上）时跳过
-        cfg.fixK2         = true;                  // 固定 K2，单参数只辨 k1（双参数共线不收敛）
-        cfg.deadzonePower = 5.0f;                  // RLS 更新死区：|P_meas|<5W 跳过（港科大；可调到 2W）
-        cfg.kFloor        = 1e-5f;                 // 辨识系数下限钳位（防发散为负）
-        cfg.skipNegPower  = true;                  // 停车/急刹预测功率为负时跳过更新，防污染 K1
-        cfg.rlsEnable     = false;                  // 在线单参数辨 k1
-        cfg.tauOmegaEnable= true;                  // τ·ω 机械功率项是模型物理项，始终保留
-        cfg.powerMax      = kTotalBudget;          // 总功率钳制上限
+        cfg.k1Init         = k1;
+        cfg.k2Init         = k2;
+        cfg.k3             = k3;
+		cfg.torqueK        = kTorqueK;
+        cfg.errUpper       = 500.0f;
+        cfg.errLower       = 0.001f;
+        cfg.rlsLambda      = 0.99999f;              // RLS 遗忘因子（接近 1 防膨胀；Init 调 SetLambda 生效）
+        cfg.pInit          = 1e-5f;                 // RLS 协方差初值
+        cfg.excMinAbsOmega = 5.0f;                 	// 激励门控  Σ|ω| < 5（约均速<1.25rad/s）且
+        cfg.excMinTau2     = 0.05f;                 //          Στ² < 0.05（空载 0.004 之上）时跳过
+        cfg.fixK2          = true;                  // 固定 K2，单参数只辨 k1（双参数共线不收敛）
+        cfg.deadzonePower  = 5.0f;                  // RLS 更新死区：|P_meas|<5W 跳过（港科大；可调到 2W）
+        cfg.kFloor         = 1e-5f;                 // 辨识系数下限钳位（防发散为负）
+        cfg.skipNegPower   = true;                  // 停车/急刹预测功率为负时跳过更新，防污染 K1
+        cfg.rlsEnable      = false;                 // 在线单参数辨 k1
+        cfg.tauOmegaEnable = true;                  // τ·ω 机械功率项是模型物理项，始终保留
+        cfg.powerMax       = kTotalBudget;          // 总功率钳制上限
         ChassisPwrCtrl.Init(cfg);
     }
 

@@ -7,16 +7,13 @@
     aliases {
         user-can1   = &mcan0;
 		user-can2   = &mcan1;
+        shell-uart  = &uart3;
         remote-uart = &uart4;
         imu-spi     = &icm42688p;
         imu-pwm     = &imu_pwm;
         buzzer-pwm  = &buzzer_pwm;
         flash-spi   = &w25q128;
         pc-usb      = &qingyuusb_usb0;
-    };
-
-    chosen {
-        zephyr,console = &uart3;
     };
 
     pwm {

@@ -19,9 +19,8 @@
 #include <zephyr/sys/byteorder.h>
 #include "can.hpp"
 #include "Irq_handlers.h"
-#include <zephyr/logging/log.h>
+#include "log.hpp"
 
-LOG_MODULE_REGISTER(can_tx, LOG_LEVEL_INF);
 
 namespace thread::can {
 
@@ -53,25 +52,25 @@ bool thread_init()
     {
         const device* dev = DEVICE_DT_GET(DT_ALIAS(user_can1));
         if (!device_is_ready(dev)) {
-            LOG_ERR("user_can1 not ready");
+            DUST_LOG_ERR("user_can1 not ready");
             return false;
         }
         const can_filter filter { .id = 0, .mask = 0, .flags = 0 };
         user_can1.Init(dev, filter);
         user_can1.SetRxCallback(user_can1_rx_callback);
-        LOG_INF("user_can1 ready");
+        DUST_LOG_INF("user_can1 ready");
     }
 
     {
         const device* dev = DEVICE_DT_GET(DT_ALIAS(user_can2));
         if (!device_is_ready(dev)) {
-            LOG_ERR("user_can2 not ready");
+            DUST_LOG_ERR("user_can2 not ready");
             return false;
         }
         const can_filter filter { .id = 0, .mask = 0, .flags = 0 };
         user_can2.Init(dev, filter);
         user_can2.SetRxCallback(user_can2_rx_callback);
-        LOG_INF("user_can2 ready");
+        DUST_LOG_INF("user_can2 ready");
     }
     return true;
 }
