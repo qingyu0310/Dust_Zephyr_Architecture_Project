@@ -303,7 +303,7 @@ bool thread_init()
 
 bool thread_start()
 {
-    thread_.Start(Task, ThreadPrio::High);
+    thread_.Start(Task, ThreadPrio::High, nullptr, "chassis");
     return true;
 }
 

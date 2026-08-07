@@ -21,7 +21,7 @@
 
 namespace thread::output {
 
-static Thread<2048> thread_{};
+static Thread<128> thread_{};
 
 static Output heart_beat{};
 
@@ -62,11 +62,11 @@ bool thread_init()
 
 bool thread_start()
 {
-    thread_.Start(Task, ThreadPrio::Low);
+    thread_.Start(Task, ThreadPrio::Low, nullptr, "output");
     return true;
 }
 
-REGISTER_INIT  (thread_init,  PreInit,   Low, HaltOnFail, "output_init");
+REGISTER_INIT  (thread_init,  PreInit, Low, HaltOnFail, "output_init");
 REGISTER_THREAD(thread_start, PreThread, "output_start");
 
 } // namespace thread::output
@@ -97,7 +97,7 @@ bool thread_init()
 
 bool thread_start()
 {
-    thread_.Start(Task, ThreadPrio::Low);
+    thread_.Start(Task, ThreadPrio::Low, nullptr, "input");
     return true;
 }
 

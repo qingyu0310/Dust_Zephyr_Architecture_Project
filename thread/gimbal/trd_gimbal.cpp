@@ -135,7 +135,7 @@ bool thread_init()
 
 bool thread_start()
 {
-    thread_.Start(Task, ThreadPrio::Normal);
+    thread_.Start(Task, ThreadPrio::Normal, nullptr, "gimbal");
     return true;
 }
 

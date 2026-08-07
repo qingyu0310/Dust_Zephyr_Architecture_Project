@@ -24,7 +24,7 @@ static usb::Usb usb_ {};
 
 static void Task(void*, void*, void*)
 {
-    uint8_t rx_buf[512];
+    uint8_t rx_buf[usb::Usb::kRxBufSize];
 
     for (;;)
     {
@@ -56,7 +56,7 @@ bool thread_start()
         return false;
     }
 
-    thread_.Start(Task, ThreadPrio::High);
+    thread_.Start(Task, ThreadPrio::High, nullptr, "pc");
     return true;
 }
 

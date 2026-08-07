@@ -106,7 +106,7 @@ bool thread_init()
 
 bool thread_start()
 {
-    thread_.Start(Task, ThreadPrio::Low);
+    thread_.Start(Task, ThreadPrio::Low, nullptr, "test");
     return true;
 }
 
