@@ -50,7 +50,6 @@
 #include "zephyr/zbus/zbus.h"
 #include "math.h"
 #include "var.hpp"
-#include "log.hpp"
 
 #pragma message "Compiling Thread/Chassis"
 
@@ -308,8 +307,8 @@ bool thread_start()
     return true;
 }
 
-REGISTER_INIT  (thread_init,  LateInit,    High, "chassis_init");
-REGISTER_THREAD(thread_start, LateThread,  High, "chassis_start");
+REGISTER_INIT  (thread_init,  LateInit,    High, HaltOnFail, "chassis_init");
+REGISTER_THREAD(thread_start, LateThread, "chassis_start");
 
 // CAN 接收注册（4 轮电机反馈）
 CAN_RX_HANDLER(CHASSIS_RX, kDriveCanId[0], [](uint8_t *data) { chassis_motor_[0].CanCpltRxCallback(data); }, motor0);

@@ -139,8 +139,8 @@ bool thread_start()
     return true;
 }
 
-REGISTER_INIT(thread_init,  MidInit,    Mid, "gimbal_init");
-REGISTER_THREAD(thread_start, MidThread,  Mid, "gimbal_start");
+REGISTER_INIT(thread_init,  MidInit,    Mid, HaltOnFail, "gimbal_init");
+REGISTER_THREAD(thread_start, MidThread, "gimbal_start");
 
 } // namespace thread::gimbal
 

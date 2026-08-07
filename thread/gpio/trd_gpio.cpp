@@ -66,8 +66,8 @@ bool thread_start()
     return true;
 }
 
-REGISTER_INIT  (thread_init,  PreInit,   Low, "output_init");
-REGISTER_THREAD(thread_start, PreThread, Low, "output_start");
+REGISTER_INIT  (thread_init,  PreInit,   Low, HaltOnFail, "output_init");
+REGISTER_THREAD(thread_start, PreThread, "output_start");
 
 } // namespace thread::output
 
@@ -101,8 +101,8 @@ bool thread_start()
     return true;
 }
 
-REGISTER_INIT  (thread_init,  EarlyInit,   Low, "input_init");
-REGISTER_THREAD(thread_start, EarlyThread, Low, "input_start");
+REGISTER_INIT  (thread_init,  EarlyInit,   Low, HaltOnFail, "input_init");
+REGISTER_THREAD(thread_start, EarlyThread, "input_start");
 
 } // namespace thread::input
 

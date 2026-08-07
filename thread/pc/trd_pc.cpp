@@ -24,11 +24,7 @@ static usb::Usb usb_ {};
 
 static void Task(void*, void*, void*)
 {
-    constexpr uint8_t start[] = "start\r\n";
     uint8_t rx_buf[512];
-
-    // 通知 PC USB 就绪
-    usb_.Send(start, sizeof(start) - 1);
 
     for (;;)
     {
@@ -47,7 +43,7 @@ bool thread_init()
     cfg.busid    = 0;
     cfg.reg_base = DT_REG_ADDR(DT_NODELABEL(qingyuusb_usb0));
     cfg.irq_num  = DT_IRQN(DT_NODELABEL(qingyuusb_usb0));
-
+	
     while (!usb_.Init(cfg)) {
         k_msleep(100);
     }
@@ -64,7 +60,7 @@ bool thread_start()
     return true;
 }
 
-REGISTER_INIT  (thread_init,  PreInit,    High, "pc_init");
-REGISTER_THREAD(thread_start, LateThread, High, "pc_start");
+REGISTER_INIT  (thread_init,  EarlyInit, High, HaltOnFail, "pc_init");
+REGISTER_THREAD(thread_start, LateThread, "pc_start");
 
 } // namespace thread::pc

@@ -110,7 +110,7 @@ bool thread_start()
     return true;
 }
 
-REGISTER_INIT  (thread_init,  LateInit,   High, "test_init");
-REGISTER_THREAD(thread_start, LateThread, High, "test_start");
+REGISTER_INIT  (thread_init,  LateInit,   High, HaltOnFail, "test_init");
+REGISTER_THREAD(thread_start, LateThread, "test_start");
 
 } // namespace thread::test

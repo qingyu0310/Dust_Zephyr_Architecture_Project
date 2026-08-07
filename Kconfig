@@ -107,7 +107,7 @@ config TRD_REMOTE
     bool "Remote thread"
     default y
     select DUST_MOD_DEV_REMOTE
-    select DUST_MOD_DEV_REMOTE_SBUS
+    select DUST_MOD_DEV_REMOTE_AUTO
     help
       Enable remote receiver thread.
 
@@ -137,7 +137,7 @@ config IMU_IDENTIFICATION
 
 config TRD_PC
     bool "PC communication thread"
-    default n
+    default y
     select DUST_COM_USB
     help
       PC communication thread (USB CDC ACM loopback test).
