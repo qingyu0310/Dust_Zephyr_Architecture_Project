@@ -1,0 +1,74 @@
+/**
+ * @file trd_gpio.cpp
+ * @author qingyu
+ * @brief
+ * @version 0.1
+ * @date 2026-04-24
+ *
+ * @copyright Copyright (c) 2026
+ *
+ */
+
+#pragma message "Compiling Thread/Gpio"
+
+#ifdef CONFIG_DUST_DEV_GPIO_OUTPUT
+
+#include "thread.hpp"
+#include "Init_entry.hpp"
+#include "output.hpp"
+#include "timer.hpp"
+
+namespace thread::output {
+
+static Thread<128> thread_{};
+
+static Output heart_beat{};
+
+static void Task(void*, void*, void*)
+{
+    static constexpr uint32_t kPeriodMs = 1;
+    Timer timer(50);
+
+    for (;;)
+    {
+        const int64_t tick_start = k_uptime_get();
+
+        timer.Update();
+
+        timer.Clock(([](){
+            heart_beat.Toggle();
+        }));
+
+        const int64_t elapsed = k_uptime_get() - tick_start;
+        const int64_t remain  = static_cast<int64_t>(kPeriodMs) - elapsed;
+        if (remain > 0) {
+            k_msleep(remain);
+        }
+    }
+}
+
+bool thread_init()
+{
+	// PA18 GPIO 心跳（引脚配置见 overlay pinmux_heartbeat）
+	static const gpio_dt_spec heartbeat_spec = {
+		.port     = DEVICE_DT_GET(DT_NODELABEL(gpioa)),
+		.pin      = 18,
+		.dt_flags = 0,          // 方向由 Output::init(默认 GPIO_OUTPUT) 配置
+	};
+
+    return heart_beat.init(heartbeat_spec);
+}
+
+bool thread_start()
+{
+    thread_.Start(Task, ThreadPrio::Low, nullptr, "output");
+    return true;
+}
+
+REGISTER_INIT  (thread_init,  PreInit, Low, HaltOnFail, "output_init");
+REGISTER_THREAD(thread_start, PreThread, "output_start");
+
+} // namespace thread::output
+
+#endif // CONFIG_DUST_DEV_GPIO_OUTPUT
+

@@ -1,0 +1,31 @@
+#include "dt-bindings/pinctrl/hpmicro-pinctrl-common.h"
+
+/ {
+    aliases {
+        shell-uart  = &uart3;
+    };
+};
+
+&hdma {
+    status = "okay";
+};
+
+&gpioa {
+    pinctrl-0 = <&pinmux_gpioa_pa18>;
+    pinctrl-names = "default";
+    status = "okay";
+};
+
+&uart3 {
+    current-speed = <921600>;
+    pinctrl-0 = <&pinmux_uart3>;
+    pinctrl-names = "default";
+    dmas = <&hdma 4 0x1A>, <&hdma 5 0x1B>;
+    dma-names = "rx", "tx";
+    status = "okay";
+};
+
+&mtimer {
+    compatible = "riscv,machine-timer", "andestech,machine-timer";
+    reg-names = "mtime", "mtimecmp";
+};
