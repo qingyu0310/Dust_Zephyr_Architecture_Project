@@ -38,8 +38,8 @@ bool thread_init()
 {
     UsbHal::Config cfg {};
 
-    cfg.reg_base     = DT_REG_ADDR(DT_NODELABEL(usbotg_fs));
-    cfg.irq_num      = DT_IRQN(DT_NODELABEL(usbotg_fs));
+    cfg.reg_base     = DT_REG_ADDR(DT_NODELABEL(dustusb_usb0));
+    cfg.irq_num      = DT_IRQN(DT_NODELABEL(dustusb_usb0));
     cfg.irq_priority = 5;   // 参考项目 OTG_FS_IRQn 优先级 5
 
     while (!usb_.Init(cfg)) {
