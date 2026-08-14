@@ -83,13 +83,15 @@ if(EXISTS "${SDK_GLUE_DIR}")
   	list(APPEND DTS_ROOT   "${SDK_GLUE_USER_DIR}/dts")
 endif()
 
-# 外来模块加载（module.yml 自动加载 Kconfig）
+# 外来模块加载（module.yml 自动加载 Kconfig；sdk_glue 仅存在时加入——st 板卡无 HPM 树）
 set(ZEPHYR_EXTRA_MODULES
-  "${SDK_GLUE_DIR}"
   "${FW_ROOT}"
   "${ZEPHYR_USER_DIR}/platform/cmsis"
   "${ZEPHYR_USER_DIR}/drivers"
 )
+if(EXISTS "${SDK_GLUE_DIR}")
+  list(PREPEND ZEPHYR_EXTRA_MODULES "${SDK_GLUE_DIR}")
+endif()
 
 # ============================================================================
 #
