@@ -8,6 +8,22 @@ if(CONFIG_TRD_GPIO)
 	)
 endif()
 
+if(CONFIG_TRD_REMOTE)
+	target_sources(app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/remote/trd_remote.cpp)
+	target_include_directories(app PRIVATE
+		${CMAKE_CURRENT_SOURCE_DIR}
+		${CMAKE_CURRENT_SOURCE_DIR}/remote
+	)
+endif()
+
+if(CONFIG_TRD_IMU)
+	target_sources(app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/imu/trd_imu.cpp)
+	target_include_directories(app PRIVATE
+		${CMAKE_CURRENT_SOURCE_DIR}
+		${CMAKE_CURRENT_SOURCE_DIR}/imu
+	)
+endif()
+
 if(CONFIG_TRD_TEST)
 	target_sources(app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/test/trd_test.cpp)
 	target_include_directories(app PRIVATE

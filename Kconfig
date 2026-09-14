@@ -40,11 +40,35 @@ config USE_CMD_FLASH
 
 config TRD_GPIO
     bool "GPIO thread task"
-    default n
+    default y
     select DUST_DEV_GPIO_OUTPUT
     select DUST_CTL_TIMER
     help
       Enable the GPIO/output indicator thread.
+
+# ============================================================================
+
+# =================              TRD_REMOTE               ====================
+
+config TRD_REMOTE
+    bool "Remote thread"
+    default n
+    select DUST_MOD_DEV_REMOTE
+    select DUST_MOD_DEV_REMOTE_AUTO
+    help
+      Enable remote receiver thread.
+
+# ============================================================================
+
+# =================                TRD_IMU                ====================
+
+config TRD_IMU
+    bool "IMU thread"
+    default n
+    select DUST_MOD_DEV_IMU
+    select DUST_TPC_IMU_TO
+    help
+      Enable IMU acquisition, heater control, and publish thread.
 
 # ============================================================================
 
@@ -53,7 +77,7 @@ config TRD_GPIO
 config TRD_TEST
     bool "User test add config"
     default y
-    select DUST_COM_USB
+    select DUST_MOD_DEV_MOTOR_DJI
     help
       Temporary user test switch.
 
