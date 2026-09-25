@@ -20,3 +20,32 @@
 	dma-names = "tx", "rx";
 	status = "okay";
 };
+
+dustusb_usb0: &usb {
+	compatible = "st,st-dustusb";
+	pinctrl-0 = <&usb_dm_pa11 &usb_dp_pa12>;
+	pinctrl-names = "default";
+	status = "okay";
+};
+
+/* 上游板卡 dts 把 usart2/3 也开了，这块只用 usart1，关掉省 RAM */
+&usart2 {
+	status = "disabled";
+};
+
+&usart3 {
+	status = "disabled";
+};
+
+/* 这块板的外部晶振是 24MHz（上游 stm32_min_dev 板卡 dts 默认按 8MHz 配）。
+   24MHz 直接进 PLL 超出 F1 的 PLL 输入范围（4–16MHz）——起振正常但 PLL 锁不住，
+   所以走 XTPRE 除 2：12MHz × 6 = 72MHz，USB 预分频 /1.5 = 48MHz。 */
+&clk_hse {
+	clock-frequency = <24000000>;
+};
+
+&pll {
+	clocks = <&clk_hse>;
+	xtpre;
+	mul = <6>;
+};

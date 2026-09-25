@@ -77,7 +77,7 @@ config TRD_IMU
 config TRD_TEST
     bool "User test add config"
     default y
-    select DUST_MOD_DEV_MOTOR_DJI
+    select DUST_DEV_PWM
     help
       Temporary user test switch.
 

@@ -1,11 +1,22 @@
 #include "dt-bindings/pinctrl/hpmicro-pinctrl-common.h"
 #include <dt-bindings/clock/hpm5361-clocks.h>
+#include <zephyr/dt-bindings/pwm/pwm.h>
 
 / {
     aliases {
         user-can1   = &mcan0;
         remote-uart = &uart4;
         shell-uart  = &uart3;
+    };
+
+    pwm {
+        compatible = "pwm-leds";
+
+        servo_pwm: servo_pwm {
+            pwms = <&pwm1 3 PWM_USEC(20000) PWM_POLARITY_NORMAL>;
+            label = "SG60 Servo";
+            status = "okay";
+        };
     };
 };
 
@@ -43,6 +54,14 @@
     pinctrl-names = "default";
     dmas = <&hdma 4 0x1A>, <&hdma 5 0x1B>;
     dma-names = "rx", "tx";
+    status = "okay";
+};
+
+&pwm1 {
+    pinctrl-0 = <&pinmux_pwm1_p3>;
+    pinctrl-names = "default";
+    period-init = <50>;
+    dead-zone-in-half-cycle = <0>;
     status = "okay";
 };
 
