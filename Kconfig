@@ -77,7 +77,6 @@ config TRD_IMU
 config TRD_TEST
     bool "User test add config"
     default y
-    select DUST_DEV_PWM
     help
       Temporary user test switch.
 
