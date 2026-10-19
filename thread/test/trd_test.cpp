@@ -22,6 +22,7 @@ static Thread<2048> thread_ {};
 static void Task(void*, void*, void*)
 {
     float t = 0.0f;
+	
     for (;;)
     {
         k_msleep(10);
