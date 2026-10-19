@@ -55,6 +55,6 @@ bool thread_start()
 }
 
 REGISTER_INIT(thread_init, EarlyInit, High, HaltOnFail, nullptr, "remote_init");
-REGISTER_THREAD(thread_start, EarlyThread, "remote_start");
+REGISTER_THREAD(thread_start, EarlyThread, ContinueOnFail, "remote_start");
 
 } // namespace thread::remote

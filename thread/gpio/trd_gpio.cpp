@@ -66,7 +66,7 @@ bool thread_start()
 }
 
 REGISTER_INIT  (thread_init,  PreInit, Low, HaltOnFail, nullptr, "output_init");
-REGISTER_THREAD(thread_start, PreThread, "output_start");
+REGISTER_THREAD(thread_start, PreThread, ContinueOnFail, "output_start");
 
 } // namespace thread::output
 

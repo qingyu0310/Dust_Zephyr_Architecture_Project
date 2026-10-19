@@ -45,6 +45,6 @@ bool thread_start()
 }
 
 REGISTER_INIT(thread_init, LateInit, High, HaltOnFail, nullptr, "test_init");
-REGISTER_THREAD(thread_start, LateThread, "test_start");
+REGISTER_THREAD(thread_start, LateThread, ContinueOnFail, "test_start");
 
 } // namespace thread::test
