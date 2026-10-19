@@ -2,8 +2,8 @@
  * @file trd_remote.cpp
  * @author qingyu
  * @brief 遥控器线程 — UART 接收，交给 remote 模块解析
- * @version 0.1
- * @date 2026-09-14
+ * @version 0.2
+ * @date 2026-10-19
  *
  * @copyright Copyright (c) 2026
  *
@@ -15,6 +15,7 @@
 #include "Init_entry.hpp"
 #include "uart.hpp"
 #include "log.hpp"
+#include <zephyr/kernel.h>
 
 namespace thread::remote {
 
@@ -44,6 +45,7 @@ bool thread_init()
     }
 
     remote_.Init(rx);
+	
     return true;
 }
 
@@ -52,7 +54,7 @@ bool thread_start()
     return remote_.Start(ThreadPrio::High);
 }
 
-REGISTER_INIT  (thread_init,  EarlyInit, High, HaltOnFail, "remote_init");
+REGISTER_INIT(thread_init, EarlyInit, High, HaltOnFail, nullptr, "remote_init");
 REGISTER_THREAD(thread_start, EarlyThread, "remote_start");
 
 } // namespace thread::remote

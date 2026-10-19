@@ -1,16 +1,15 @@
 /**
  * @file trd_test.cpp
  * @author qingyu
- * @brief 测试线程 —— PWM 驱动 SG60 舵机 0°/180° 交替（1 秒一次）
- * @version 0.6
- * @date 2026-09-15
+ * @brief 测试线程 —— VOFA+ FireWater 双通道波形输出（受管周期任务）
+ * @version 0.7
+ * @date 2026-10-19
  */
 
 #include "thread.hpp"
 #include "Init_entry.hpp"
 #include "log.hpp"
 #include <zephyr/kernel.h>
-#include <zephyr/devicetree.h>
 #include <cmath>
 
 #pragma message "Compiling Thread/Test"
@@ -19,21 +18,19 @@ namespace thread::test {
 
 static Thread<2048> thread_ {};
 
-static void Task(void*, void*, void*)
+/**
+ * @brief 任务单拍：推进仿真时间并输出一组 VOFA+ 波形
+ * @param context 未使用
+ * @return Continue=正常
+ */
+static TaskResult Task(void* context)
 {
-    float t = 0.0f;
-	
-    for (;;)
-    {
-        k_msleep(10);
+    (void)context;
 
-        t += 0.01f;
-        float ch0 = std::sinh(t);            // 通道0：正弦 [-1, 1]
-        float ch1 = std::cosh(t) * 2.0f;     // 通道1：余弦 [-2, 2]
+    // VOFA+ FireWater 测试：log mode vofa on 后应为纯文本 "v0,v1\r\n"，VOFA+ 出两条曲线
+    DUST_LOG_DBG("vofa", "%f,%f", 1.0, 2.0);
 
-        // VOFA+ FireWater 测试：log on vofa 后应为纯文本 "v0,v1\r\n"，VOFA+ 出两条曲线
-        DUST_LOG_DBG("vofa", "%f,%f", static_cast<double>(ch0), static_cast<double>(ch1));
-    }
+    return TaskResult::Continue;
 }
 
 bool thread_init()
@@ -43,11 +40,11 @@ bool thread_init()
 
 bool thread_start()
 {
-    thread_.Start(Task, ThreadPrio::High, nullptr, "test");
+    thread_.Start(Task, K_MSEC(100), ThreadPrio::High, nullptr, "test");
     return true;
 }
 
-REGISTER_INIT  (thread_init,  LateInit, High, HaltOnFail, "test_init");
+REGISTER_INIT(thread_init, LateInit, High, HaltOnFail, nullptr, "test_init");
 REGISTER_THREAD(thread_start, LateThread, "test_start");
 
 } // namespace thread::test

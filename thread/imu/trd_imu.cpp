@@ -2,8 +2,8 @@
  * @file trd_imu.cpp
  * @author qingyu
  * @brief IMU 线程 — 启动 imu 模块（采集、加热控温、姿态解算）
- * @version 0.1
- * @date 2026-09-14
+ * @version 0.2
+ * @date 2026-10-19
  *
  * @copyright Copyright (c) 2026
  *
@@ -28,7 +28,7 @@ bool thread_start()
     return imu_.Start(ThreadPrio::High);
 }
 
-REGISTER_INIT  (thread_init,  EarlyInit, High, HaltOnFail, "imu_init");
+REGISTER_INIT  (thread_init,  EarlyInit, High, HaltOnFail, nullptr, "imu_init");
 REGISTER_THREAD(thread_start, EarlyThread, "imu_start");
 
 } // namespace thread::imu

@@ -2,8 +2,8 @@
  * @file trd_gpio.cpp
  * @author qingyu
  * @brief
- * @version 0.1
- * @date 2026-04-24
+ * @version 0.2
+ * @date 2026-10-19
  *
  * @copyright Copyright (c) 2026
  *
@@ -65,7 +65,7 @@ bool thread_start()
     return true;
 }
 
-REGISTER_INIT  (thread_init,  PreInit, Low, HaltOnFail, "output_init");
+REGISTER_INIT  (thread_init,  PreInit, Low, HaltOnFail, nullptr, "output_init");
 REGISTER_THREAD(thread_start, PreThread, "output_start");
 
 } // namespace thread::output

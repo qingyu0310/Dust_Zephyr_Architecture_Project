@@ -120,6 +120,7 @@ if(CONFIG_${CONFIG_SYM})
 endif()
 
 # 业务源码与系统入口（main() 由架构层 init 提供，业务项目不再有 src/）
+# init 的三个子目录 include 由 framework/init/CMakeLists.txt 统一加入
 target_include_directories(app PRIVATE
   	${FW_ROOT}/init
   	${FW_ROOT}/cmd
