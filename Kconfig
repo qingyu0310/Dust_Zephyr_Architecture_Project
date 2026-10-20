@@ -52,7 +52,7 @@ config TRD_GPIO
 
 config TRD_REMOTE
     bool "Remote thread"
-    default y
+    default n
     select DUST_MOD_DEV_REMOTE
     select DUST_MOD_DEV_REMOTE_AUTO
     help
