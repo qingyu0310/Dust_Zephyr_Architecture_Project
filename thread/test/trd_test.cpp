@@ -2,8 +2,8 @@
  * @file trd_test.cpp
  * @author qingyu
  * @brief 测试线程 —— fatal 异常触发验证（var 命令控制）
- * @version 1.0
- * @date 2026-10-20
+ * @version 1.1
+ * @date 2026-10-21
  */
 
 #include "thread.hpp"
@@ -36,6 +36,33 @@ static void Trace(const struct device* dev, const char* text)
     }
 }
 
+// 深度由外部计数控制：编译器会把握度无限的递归改成循环，栈不再增长
+static volatile uint32_t recurse_depth_ = 0;
+
+/**
+ * @brief 递归下探耗尽线程栈（每层约 128 字节）
+ *
+ * 栈顺序增长逐层进入 PMP guard 窗口，sp 落在窗口内时
+ * bad_stack_pointer() 判定成立，reason 才是 K_ERR_STACK_CHK_FAIL。
+ * 一次性大数组会从栈顶跳过整个 guard 并先砸坏 k_thread 结构。
+ *
+ * 递归条件读 volatile 计数：编译器无法证明递归无终止，不会改写成循环。
+ * 递归调用位于函数末尾、是一条尾调用，-O2 的兄弟调用优化会把它改写成
+ * 跳回函数头的循环（栈只分配一次）。递归后用内联汇编声明 pad 仍被读取，
+ * ra 与栈帧在调用后还活着，尾调用优化就做不成了。
+ */
+__attribute__((noinline)) static void RecurseForever()
+{
+    volatile uint8_t pad[128] {};
+    pad[0] = 1;
+
+    if (recurse_depth_ > 0) {
+        recurse_depth_--;
+        RecurseForever();
+    }
+    asm volatile("" : "+m"(pad) : : "memory");
+}
+
 /**
  * @brief 触发指定类型的异常
  * @param kind 异常类型（1=非法地址 2=栈溢出 3=除零）
@@ -55,10 +82,8 @@ static void TriggerFault(uint32_t kind)
 
         case 2:
         {
-            volatile uint8_t big[4096] {};
-            big[0] = 1;
-            big[4000] = 2;
-            (void)big;
+            recurse_depth_ = 1000;      // 1000 × 128B 远超 2048B 栈
+            RecurseForever();
             break;
         }
 
