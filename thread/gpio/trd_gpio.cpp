@@ -62,7 +62,7 @@ bool thread_start()
     return true;
 }
 
-REGISTER_INIT  (thread_init,  PreInit, Low, HaltOnFail, nullptr, "output_init");
+REGISTER_INIT(thread_init, PreInit, Low, HaltOnFail, nullptr, "output_init");
 REGISTER_THREAD(thread_start, PreThread, ContinueOnFail, "output_start");
 
 } // namespace thread::output
