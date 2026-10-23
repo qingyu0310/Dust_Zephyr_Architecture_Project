@@ -6,10 +6,12 @@ set(BOARD_GLOBAL_INCLUDES
   "${ZEPHYR_USER_DIR}/../modules/hal/cmsis/CMSIS/Core/Include"
 )
 
+# 板卡层已提供 openocd / jlink / stm32cubeprogrammer 三个候选，这里选默认
+# 临时换工具：dust flash --runner jlink
 set(BOARD_FLASH_RUNNER openocd)
 set(OPENOCD "C:/Program Files/Path/openocd/bin/openocd.exe" CACHE FILEPATH "")
 
-set(BOARD_CFG_DIR "${CMAKE_CURRENT_SOURCE_DIR}/${PROJ_DIR}/boards")
+set(BOARD_CFG_DIR "${CMAKE_CURRENT_SOURCE_DIR}/boards")
 
 macro(app_set_runner_args)
   get_property(_ocd_done GLOBAL PROPERTY _OCD_STM32_DONE)

@@ -2,8 +2,8 @@
  * @file trd_gpio.cpp
  * @author qingyu
  * @brief
- * @version 0.2
- * @date 2026-10-19
+ * @version 0.3
+ * @date 2026-10-22
  *
  * @copyright Copyright (c) 2026
  *
@@ -24,27 +24,24 @@ static Thread<128> thread_{};
 
 static Output heart_beat{};
 
-static void Task(void*, void*, void*)
+/**
+ * @brief 任务单拍：推进计时器并翻转心跳
+ * @param context 未使用
+ * @return Continue=正常
+ */
+static TaskResult Task(void* context)
 {
-    static constexpr uint32_t kPeriodMs = 1;
-    Timer timer(50);
+    (void)context;
 
-    for (;;)
-    {
-        const int64_t tick_start = k_uptime_get();
+    static Timer timer(50);
 
-        timer.Update();
+    timer.Update();
 
-        timer.Clock(([](){
-            heart_beat.Toggle();
-        }));
+    timer.Clock(([](){
+        heart_beat.Toggle();
+    }));
 
-        const int64_t elapsed = k_uptime_get() - tick_start;
-        const int64_t remain  = static_cast<int64_t>(kPeriodMs) - elapsed;
-        if (remain > 0) {
-            k_msleep(remain);
-        }
-    }
+    return TaskResult::Continue;
 }
 
 bool thread_init()
@@ -61,7 +58,7 @@ bool thread_init()
 
 bool thread_start()
 {
-    thread_.Start(Task, ThreadPrio::Low, nullptr, "output");
+    thread_.Start(Task, K_MSEC(1), ThreadPrio::Low, nullptr, "output");
     return true;
 }
 
