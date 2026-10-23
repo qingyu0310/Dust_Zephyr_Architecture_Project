@@ -1,17 +1,16 @@
 /**
  * @file trd_test.cpp
  * @author qingyu
- * @brief 测试线程 —— fatal 异常触发验证（var 命令控制）
- * @version 1.1
- * @date 2026-10-21
+ * @brief 测试线程 —— 线程故障处置验证（var 命令控制）
+ * @version 1.5
+ * @date 2026-10-24
  */
 
 #include "thread.hpp"
 #include "Init_entry.hpp"
 #include "var.hpp"
+#include "log.hpp"
 #include <zephyr/kernel.h>
-#include <zephyr/drivers/uart.h>
-#include <zephyr/devicetree.h>
 
 #pragma message "Compiling Thread/Test"
 
@@ -19,105 +18,55 @@ namespace thread::test {
 
 static Thread<2048> thread_ {};
 
-// 0=空闲；1=非法地址写入；2=栈溢出；3=除零（整数）
+// 0=空闲；1=Retry（钩子扛住，继续）；2=Exit（跳过钩子，按策略处置）
 static uint32_t trigger_ = 0;
 
 REGISTER_SHELL_VAR("test_trigger", trigger_);
 
 /**
- * @brief 裸 UART 打点（不依赖日志队列与 shell 线程）
- * @param dev  shell-uart 设备
- * @param text 以 '\0' 结尾的字符串
+ * @brief Retry 钩子：扛住并打日志
+ * @param context 未使用
+ * @return true=已扛住，线程继续下一拍
  */
-static void Trace(const struct device* dev, const char* text)
+static bool OnRetry(void* context)
 {
-    for (const char* p = text; *p != '\0'; ++p) {
-        uart_poll_out(dev, static_cast<unsigned char>(*p));
-    }
-}
+    (void)context;
 
-// 深度由外部计数控制：编译器会把握度无限的递归改成循环，栈不再增长
-static volatile uint32_t recurse_depth_ = 0;
+    DUST_LOG_INF("retry handled");
 
-/**
- * @brief 递归下探耗尽线程栈（每层约 128 字节）
- *
- * 栈顺序增长逐层进入 PMP guard 窗口，sp 落在窗口内时
- * bad_stack_pointer() 判定成立，reason 才是 K_ERR_STACK_CHK_FAIL。
- * 一次性大数组会从栈顶跳过整个 guard 并先砸坏 k_thread 结构。
- *
- * 递归条件读 volatile 计数：编译器无法证明递归无终止，不会改写成循环。
- * 递归调用位于函数末尾、是一条尾调用，-O2 的兄弟调用优化会把它改写成
- * 跳回函数头的循环（栈只分配一次）。递归后用内联汇编声明 pad 仍被读取，
- * ra 与栈帧在调用后还活着，尾调用优化就做不成了。
- */
-__attribute__((noinline)) static void RecurseForever()
-{
-    volatile uint8_t pad[128] {};
-    pad[0] = 1;
-
-    if (recurse_depth_ > 0) {
-        recurse_depth_--;
-        RecurseForever();
-    }
-    asm volatile("" : "+m"(pad) : : "memory");
+    return true;
 }
 
 /**
- * @brief 触发指定类型的异常
- * @param kind 异常类型（1=非法地址 2=栈溢出 3=除零）
+ * @brief 亡语：线程临死前打一条日志
+ * @param context 未使用
  */
-static void TriggerFault(uint32_t kind)
+static void OnExit(void* context)
 {
-    switch (kind)
-    {
-        case 1:
-        {
-            // HPM5361 的 0x0 是合法 ILM（ILM_LOCAL_BASE=0x0, 128KB），
-            // 写它只会破坏向量表而不触发异常。用无映射地址。
-            volatile uint32_t* p = reinterpret_cast<volatile uint32_t*>(0x90000000);
-            *p = 0xDEADBEEF;
-            break;
-        }
+    (void)context;
 
-        case 2:
-        {
-            recurse_depth_ = 1000;      // 1000 × 128B 远超 2048B 栈
-            RecurseForever();
-            break;
-        }
-
-        case 3:
-        {
-            volatile int32_t zero = 0;
-            volatile int32_t result = 100 / zero;
-            (void)result;
-            break;
-        }
-
-        default:
-            break;
-    }
+    DUST_LOG_INF("exit hook");
 }
 
 /**
  * @brief 任务单拍：检查触发开关
  * @param context 未使用
- * @return Continue=正常
+ * @return Continue=正常；Retry=走钩子；Exit=跳过钩子按策略处置
  */
 static TaskResult Task(void* context)
 {
     (void)context;
 
-    if (trigger_ != 0) {
-        const uint32_t kind = trigger_;
+    if (trigger_ == 1)
+    {
         trigger_ = 0;
+        return TaskResult::Retry;       // 钩子扛住：线程继续，retry_count++
+    }
 
-        const struct device* dev = DEVICE_DT_GET(DT_ALIAS(shell_uart));
-
-        Trace(dev, "\r\n[test] firing\r\n");
-
-        TriggerFault(kind);
+    if (trigger_ == 2)
+    {
+        trigger_ = 0;
+        return TaskResult::Exit;        // 跳过钩子 → DefaultHandle → 亡语 → 终止
     }
 
     return TaskResult::Continue;
@@ -130,6 +79,10 @@ bool thread_init()
 
 bool thread_start()
 {
+    thread_.SetFaultPolicy(ThreadFaultPolicy::Recover);   // 测试线程：故障只杀自己
+    thread_.SetRetryHook(OnRetry);
+    thread_.SetExitHook(OnExit);
+
     thread_.Start(Task, K_MSEC(10), ThreadPrio::High, nullptr, "test");
     return true;
 }
