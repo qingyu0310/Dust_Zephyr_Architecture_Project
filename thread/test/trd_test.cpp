@@ -79,11 +79,8 @@ bool thread_init()
 
 bool thread_start()
 {
-    thread_.SetFaultPolicy(ThreadFaultPolicy::Recover);   // 测试线程：故障只杀自己
-    thread_.SetRetryHook(OnRetry);
-    thread_.SetExitHook(OnExit);
-
-    thread_.Start(Task, K_MSEC(10), ThreadPrio::High, nullptr, "test");
+    thread_.Start(Task, K_MSEC(10), ThreadPrio::High, nullptr, "test",
+                  ThreadFaultConfig{ OnRetry, OnExit, ThreadFaultPolicy::Recover });
     return true;
 }
 

@@ -2,8 +2,8 @@
  * @file trd_gpio.cpp
  * @author qingyu
  * @brief
- * @version 0.3
- * @date 2026-10-22
+ * @version 0.4
+ * @date 2026-10-24
  *
  * @copyright Copyright (c) 2026
  *
@@ -58,7 +58,8 @@ bool thread_init()
 
 bool thread_start()
 {
-    thread_.Start(Task, K_MSEC(1), ThreadPrio::Low, nullptr, "output");
+    thread_.Start(Task, K_MSEC(1), ThreadPrio::Low, nullptr, "output",
+                  ThreadFaultConfig{ nullptr, nullptr, ThreadFaultPolicy::Isolate });   // 心跳挂了只杀自己
     return true;
 }
 

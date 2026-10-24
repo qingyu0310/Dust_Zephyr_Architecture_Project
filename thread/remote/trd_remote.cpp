@@ -28,7 +28,8 @@ bool thread_init()
     constexpr uint16_t kTimeoutMs = 1000;
 
     // 初始参数（DR16），协议切换时由 remote 模块 Reconfigure 成对应协议的线路参数
-    UartDma::Config cfg {
+    UartDma::Config cfg 
+	{
         .line_cfg = {
             .baudrate  = 100000,
             .parity    = UART_CFG_PARITY_EVEN,
