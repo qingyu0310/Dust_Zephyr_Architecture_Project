@@ -33,7 +33,7 @@ static TaskResult Task(void* context)
 {
     (void)context;
 
-    static Timer timer(50);
+    static Timer timer(1000);
 
     timer.Update();
 
@@ -46,20 +46,15 @@ static TaskResult Task(void* context)
 
 bool thread_init()
 {
-	// PA18 GPIO 心跳（引脚配置见 overlay pinmux_heartbeat）
-	static const gpio_dt_spec heartbeat_spec = {
-		.port     = DEVICE_DT_GET(DT_NODELABEL(gpioa)),
-		.pin      = 18,
-		.dt_flags = 0,          // 方向由 Output::init(默认 GPIO_OUTPUT) 配置
-	};
+	// 心跳引脚由 overlay 的 heart_beat 节点决定（compatible = "heart-beat"）
+	static const gpio_dt_spec heartbeat_spec = GPIO_DT_SPEC_GET(DT_NODELABEL(heart_beat), gpios);
 
     return heart_beat.init(heartbeat_spec);
 }
 
 bool thread_start()
 {
-    thread_.Start(Task, K_MSEC(1), ThreadPrio::Low, nullptr, "output",
-                  ThreadFaultConfig{ nullptr, nullptr, ThreadFaultPolicy::Isolate });   // 心跳挂了只杀自己
+    thread_.Start(Task, K_MSEC(1), ThreadPrio::Low, nullptr, "output", ThreadFaultConfig{ nullptr, nullptr, ThreadFaultPolicy::Isolate });   // 心跳挂了只杀自己
     return true;
 }
 
