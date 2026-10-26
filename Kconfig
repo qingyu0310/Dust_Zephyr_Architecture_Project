@@ -76,7 +76,7 @@ config TRD_IMU
 
 config TRD_TEST
     bool "User test add config"
-    default n
+    default y
     help
       Temporary user test switch.
 
