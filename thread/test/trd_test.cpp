@@ -1,8 +1,8 @@
 ﻿/**
  * @file trd_test.cpp
  * @author qingyu
- * @brief 测试线程 —— PD8 / PD9 GPIO 翻转（验引脚对应关系）
- * @version 2.1
+ * @brief 测试线程 —— EtherCAT 从站（SSC 5.13）
+ * @version 3.0
  * @date 2026-10-28
  */
 
@@ -10,59 +10,57 @@
 #include "thread.hpp"
 #include "Init_entry.hpp"
 #include <zephyr/kernel.h>
-#include <zephyr/devicetree.h>
-#include "output.hpp"
+#include "ethercat.hpp"
 
 #pragma message "Compiling Thread/Test"
- 
+
 namespace thread::test {
 
-static constexpr uint32_t kPeriodMs = 500;                      // 翻转周期
-
-static Thread<2048> thread_ {};
-static Output       pd14_    {};
-static Output       pd15_    {};
+static Thread<4096> thread_ {};
 
 /**
- * @brief 任务单拍：翻转 PD8 / PD9
+ * @brief 任务单拍：跑一轮协议栈主循环
  * @param context 未使用
- * @return Continue=继续下一拍
+ * @return Continue=正常
  */
 static TaskResult Task(void* context)
 {
     (void)context;
 
-    pd14_.Toggle();
-    pd15_.Toggle();
-
-	DUST_LOG_INF("run in");
+    EthercatSlave::Instance().Run();
 
     return TaskResult::Continue;
 }
 
 bool thread_init()
 {
-    static const gpio_dt_spec pd14_spec = {
-        .port     = DEVICE_DT_GET(DT_NODELABEL(gpiod)),
-        .pin      = 14,
-        .dt_flags = 0,              // 方向由 Output::init(默认 GPIO_OUTPUT) 配置
-    };
-    static const gpio_dt_spec pd15_spec = {
-        .port     = DEVICE_DT_GET(DT_NODELABEL(gpiod)),
-        .pin      = 15,
-        .dt_flags = 0,              // 方向由 Output::init(默认 GPIO_OUTPUT) 配置
-    };
+    EthercatSlave& ecat = EthercatSlave::Instance();
 
-    if (!pd14_.init(pd14_spec) || !pd15_.init(pd15_spec)) {
+    if (!ecat.Init()) {
         return false;
     }
+
+    // 主站 → 从站（SM2 / RxPDO）
+    ecat.SetRxHandler([](const uint8_t* data, size_t len) 
+	{
+        DUST_LOG_INF("ecat rx %u bytes", static_cast<unsigned>(len));
+        (void)data;
+    });
+
+    // 从站 → 主站（SM3 / TxPDO）
+    ecat.SetTxProvider([](uint8_t* data, size_t len)
+	{
+        for (size_t i = 0; i < len; i++) {
+            data[i] = static_cast<uint8_t>(i);
+        }
+    });
 
     return true;
 }
 
 bool thread_start()
 {
-    thread_.Start(Task, K_MSEC(kPeriodMs), ThreadPrio::High, nullptr, "test");
+    thread_.Start(Task, K_NO_WAIT, ThreadPrio::High, nullptr, "test");
     return true;
 }
 
