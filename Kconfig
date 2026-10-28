@@ -52,7 +52,7 @@ config TRD_GPIO
 
 config TRD_REMOTE
     bool "Remote thread"
-    default n
+    default y
     select DUST_MOD_DEV_REMOTE
     select DUST_MOD_DEV_REMOTE_AUTO
     help
@@ -76,6 +76,7 @@ config TRD_IMU
 
 config TRD_TEST
     bool "User test add config"
+    select DUST_DEV_GPIO_OUTPUT
     default y
     help
       Temporary user test switch.

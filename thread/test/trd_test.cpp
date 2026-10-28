@@ -1,86 +1,68 @@
-/**
+﻿/**
  * @file trd_test.cpp
  * @author qingyu
- * @brief 测试线程 —— 线程故障处置验证（var 命令控制）
- * @version 1.5
- * @date 2026-10-24
+ * @brief 测试线程 —— PD8 / PD9 GPIO 翻转（验引脚对应关系）
+ * @version 2.1
+ * @date 2026-10-28
  */
 
+#include "log.hpp"
 #include "thread.hpp"
 #include "Init_entry.hpp"
-#include "var.hpp"
-#include "log.hpp"
 #include <zephyr/kernel.h>
+#include <zephyr/devicetree.h>
+#include "output.hpp"
 
 #pragma message "Compiling Thread/Test"
-
+ 
 namespace thread::test {
 
+static constexpr uint32_t kPeriodMs = 500;                      // 翻转周期
+
 static Thread<2048> thread_ {};
-
-// 0=空闲；1=Retry（钩子扛住，继续）；2=Exit（跳过钩子，按策略处置）
-static uint32_t trigger_ = 0;
-
-REGISTER_SHELL_VAR("test_trigger", trigger_);
+static Output       pd14_    {};
+static Output       pd15_    {};
 
 /**
- * @brief Retry 钩子：扛住并打日志
+ * @brief 任务单拍：翻转 PD8 / PD9
  * @param context 未使用
- * @return true=已扛住，线程继续下一拍
- */
-static bool OnRetry(void* context)
-{
-    (void)context;
-
-    DUST_LOG_INF("retry handled");
-
-    return true;
-}
-
-/**
- * @brief 亡语：线程临死前打一条日志
- * @param context 未使用
- */
-static void OnExit(void* context)
-{
-    (void)context;
-
-    DUST_LOG_INF("exit hook");
-}
-
-/**
- * @brief 任务单拍：检查触发开关
- * @param context 未使用
- * @return Continue=正常；Retry=走钩子；Exit=跳过钩子按策略处置
+ * @return Continue=继续下一拍
  */
 static TaskResult Task(void* context)
 {
     (void)context;
 
-    if (trigger_ == 1)
-    {
-        trigger_ = 0;
-        return TaskResult::Retry;       // 钩子扛住：线程继续，retry_count++
-    }
+    pd14_.Toggle();
+    pd15_.Toggle();
 
-    if (trigger_ == 2)
-    {
-        trigger_ = 0;
-        return TaskResult::Exit;        // 跳过钩子 → DefaultHandle → 亡语 → 终止
-    }
+	DUST_LOG_INF("run in");
 
     return TaskResult::Continue;
 }
 
 bool thread_init()
 {
+    static const gpio_dt_spec pd14_spec = {
+        .port     = DEVICE_DT_GET(DT_NODELABEL(gpiod)),
+        .pin      = 14,
+        .dt_flags = 0,              // 方向由 Output::init(默认 GPIO_OUTPUT) 配置
+    };
+    static const gpio_dt_spec pd15_spec = {
+        .port     = DEVICE_DT_GET(DT_NODELABEL(gpiod)),
+        .pin      = 15,
+        .dt_flags = 0,              // 方向由 Output::init(默认 GPIO_OUTPUT) 配置
+    };
+
+    if (!pd14_.init(pd14_spec) || !pd15_.init(pd15_spec)) {
+        return false;
+    }
+
     return true;
 }
 
 bool thread_start()
 {
-    thread_.Start(Task, K_MSEC(10), ThreadPrio::High, nullptr, "test",
-                  ThreadFaultConfig{ OnRetry, OnExit, ThreadFaultPolicy::Recover });
+    thread_.Start(Task, K_MSEC(kPeriodMs), ThreadPrio::High, nullptr, "test");
     return true;
 }
 

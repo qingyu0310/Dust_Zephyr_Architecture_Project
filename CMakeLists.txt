@@ -93,6 +93,10 @@ set(ZEPHYR_EXTRA_MODULES
 if(EXISTS "${SDK_GLUE_DIR}")
   list(PREPEND ZEPHYR_EXTRA_MODULES "${SDK_GLUE_DIR}")
 endif()
+# 用户层 HPM 覆盖模块（只带 drivers，不重复 soc/boards/dts）
+if(EXISTS "${SDK_GLUE_USER_DIR}/zephyr/module.yml")
+  list(APPEND ZEPHYR_EXTRA_MODULES "${SDK_GLUE_USER_DIR}")
+endif()
 
 # ============================================================================
 #

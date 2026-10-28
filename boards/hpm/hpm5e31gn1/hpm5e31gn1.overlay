@@ -1,0 +1,45 @@
+#include <dt-bindings/pinctrl/hpmicro-pinctrl-common.h>
+
+/ {
+    aliases {
+        user-can1 = &mcan3;
+        shell-uart = &uart0;
+    };
+};
+
+&pinctrl {
+    pinmux_user_can1: pinmux_user_can1 {
+        group0 {
+            pinmux = <HPMICRO_PINMUX(HPMICRO_PIN(HPMICRO_PORTD, 15), IOC_TYPE_IOC, 0, 7)>,
+                     <HPMICRO_PINMUX(HPMICRO_PIN(HPMICRO_PORTD, 14), IOC_TYPE_IOC, 0, 7)>;
+            input-enable;
+        };
+    };
+
+    pinmux_gpiod_pd8_pd9: pinmux_gpiod_pd8_pd9 {
+        group0 {
+            pinmux = <HPMICRO_PINMUX(HPMICRO_PIN(HPMICRO_PORTD, 8), IOC_TYPE_IOC, 0, 0)>,
+                     <HPMICRO_PINMUX(HPMICRO_PIN(HPMICRO_PORTD, 9), IOC_TYPE_IOC, 0, 0)>;
+        };
+    };
+};
+
+&mcan3 {
+    pinctrl-0 = <&pinmux_user_can1>;
+    pinctrl-names = "default";
+    bitrate = <1000000>;
+    status = "okay";
+};
+
+&gpiod {
+    pinctrl-0 = <&pinmux_gpiod_pd8_pd9>;
+    pinctrl-names = "default";
+    status = "okay";
+};
+
+&uart0 {
+    current-speed = <921600>;
+    status = "okay";
+};
+
+&hdma { status = "okay"; };
