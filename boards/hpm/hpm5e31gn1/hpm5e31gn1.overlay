@@ -30,6 +30,26 @@
     software-link0;
     software-link1;
     port1-enabled;
+    phys = <&ecat_phy0 &ecat_phy1>;
+};
+
+/ {
+    /* EtherCAT PHY：驱动由 compatible 选中，参数在这里填 */
+    ecat_phy0: ethercat-phy-1 {
+        compatible = "hpmicro,ecat-phy-rtl8201f";
+        mdio-address = <1>;
+        phy-mode = "mii";
+        autoneg;
+        advertise = <0x0100>;      /* 只通告 100BASE-TX 全双工 */
+    };
+
+    ecat_phy1: ethercat-phy-0 {
+        compatible = "hpmicro,ecat-phy-tja1101b";
+        mdio-address = <0>;
+        phy-mode = "mii";
+        autoneg;
+        master-slave = "auto";
+    };
 };
 
 &uart0 {

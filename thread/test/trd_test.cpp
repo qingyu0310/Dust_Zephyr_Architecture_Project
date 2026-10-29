@@ -2,8 +2,8 @@
  * @file trd_test.cpp
  * @author qingyu
  * @brief 测试线程 —— EtherCAT 从站（SSC 5.13）
- * @version 3.0
- * @date 2026-10-28
+ * @version 3.1
+ * @date 2026-10-29
  */
 
 #include "log.hpp"
@@ -17,6 +17,7 @@
 namespace thread::test {
 
 static Thread<4096> thread_ {};
+static ecat::EthercatSlave slave_;
 
 /**
  * @brief 任务单拍：跑一轮协议栈主循环
@@ -27,28 +28,26 @@ static TaskResult Task(void* context)
 {
     (void)context;
 
-    EthercatSlave::Instance().Run();
+    slave_.Run();
 
     return TaskResult::Continue;
 }
 
 bool thread_init()
 {
-    EthercatSlave& ecat = EthercatSlave::Instance();
-
-    if (!ecat.Init()) {
+    if (!slave_.Init()) {
         return false;
     }
 
     // 主站 → 从站（SM2 / RxPDO）
-    ecat.SetRxHandler([](const uint8_t* data, size_t len) 
+    slave_.SetRxHandler([](const uint8_t* data, size_t len)
 	{
         DUST_LOG_INF("ecat rx %u bytes", static_cast<unsigned>(len));
         (void)data;
     });
 
     // 从站 → 主站（SM3 / TxPDO）
-    ecat.SetTxProvider([](uint8_t* data, size_t len)
+    slave_.SetTxProvider([](uint8_t* data, size_t len)
 	{
         for (size_t i = 0; i < len; i++) {
             data[i] = static_cast<uint8_t>(i);

@@ -78,7 +78,7 @@ config TRD_TEST
     bool "User test add config"
     select DUST_DEV_GPIO_OUTPUT
     select DUST_COM_ETHERCAT
-    select HPM_ESC
+    select DUST_ECAT_HAL_HPM
     default y
     help
       Temporary user test switch.
