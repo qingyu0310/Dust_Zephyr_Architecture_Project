@@ -79,6 +79,7 @@ config TRD_TEST
     select DUST_DEV_GPIO_OUTPUT
     select DUST_COM_ETHERCAT
     select DUST_ECAT_HAL_HPM
+    select DUST_DEV_ECAT_PHY_JL1111
     default y
     help
       Temporary user test switch.
