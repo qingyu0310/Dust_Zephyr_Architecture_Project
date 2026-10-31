@@ -23,11 +23,11 @@
 
 namespace thread::test {
 
-static Thread<4096> thread_ {};
-static ::ecat::EthercatSlave slave_ {};
-
 using ecat::PdoInputs;
 using ecat::PdoOutputs;
+
+static Thread<4096> thread_ {};
+static ::ecat::EthercatSlave slave_ {};
 
 static uint32_t s_input_counter = 0;	// 从站的输入计数器，每帧递增
 
@@ -36,6 +36,7 @@ static uint32_t s_input_counter = 0;	// 从站的输入计数器，每帧递增
  *
  * 只做拷贝与打点，不阻塞、不分配。
  * 日志分两条：DUST_LOG 队列帧只有 4 个整数槽，超过会丢字段。
+ * DBG 流 ecat_rx 供 shell `log on ecat_rx` 按需观察。
  *
  * @param context 未使用
  * @param data    主站发来的字节
@@ -56,6 +57,8 @@ static void on_master_data(void* context, const uint8_t* data, uint16_t length)
 
 	DUST_LOG_INF("ecat rx[0..3]: %u %u %u %u", value.counter[0], value.counter[1], value.counter[2], value.counter[3]);
 	DUST_LOG_INF("ecat rx[4..7]: %u %u %u %u", value.counter[4], value.counter[5], value.counter[6], value.counter[7]);
+
+	DUST_LOG_DBG("ecat_rx", "rx: %u %u %u %u", value.counter[0], value.counter[1], value.counter[2], value.counter[3]);
 }
 
 /**
@@ -112,7 +115,7 @@ bool thread_init()
 	}
 
 	slave_.SetOutputSink(on_master_data, nullptr);
-	slave_.SetInputSource(fill_inputs, nullptr);
+	slave_.SetInputSource(fill_inputs,  nullptr);
 
 	DUST_LOG_INF("ecat: ready rx=%u tx=%u", static_cast<unsigned>(slave_.Layout().rx_size), static_cast<unsigned>(slave_.Layout().tx_size));
 	return true;

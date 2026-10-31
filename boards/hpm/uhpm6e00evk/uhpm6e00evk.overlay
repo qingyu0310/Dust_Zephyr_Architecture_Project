@@ -29,6 +29,10 @@
 	status = "okay";
 };
 
+&esc0 {
+	status = "okay";
+};
+
 &mtimer {
 	compatible = "riscv,machine-timer", "andestech,machine-timer";
 	reg-names = "mtime", "mtimecmp";
