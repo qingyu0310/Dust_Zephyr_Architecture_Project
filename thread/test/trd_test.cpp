@@ -15,7 +15,7 @@
 #include "ecat_hal_hpm.hpp"
 #include "ecat_phy.hpp"
 #include "ethercat.hpp"
-#include "jl1111/phy_jl1111.hpp"
+#include "rtl8201f/phy_rtl8201f.hpp"
 #include "log.hpp"
 #include "shell_cmd.hpp"
 #include "token.hpp"
@@ -176,10 +176,9 @@ REGISTER_SHELL_CMD("ecat", "ecat fault [clear]", EcatCommand);
 bool thread_init()
 {
 	static ::ecat::EcatEscHpm esc {};
-	static ::PhyJl1111 phy0 {};
-	static ::PhyJl1111 phy1 {};
+	static ::PhyRtl8201f  phy0 {};    // Port0：RTL8201F（MDIO 1）
 
-	static ::EcatPhy* const phys[] = { &phy0, &phy1 };
+	static ::EcatPhy* const phys[] = { &phy0, nullptr };    // Port1 未焊接
 
 	if (!slave_.Init(esc, phys)) {
 		DUST_LOG_ERR("ecat: init failed");

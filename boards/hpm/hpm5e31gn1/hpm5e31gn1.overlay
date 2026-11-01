@@ -8,25 +8,27 @@
     };
 };
 
-&gpiod {
-    pinctrl-0 = <&pinmux_gpiod_pd14_pd15>;
+&uart0 {
+    pinctrl-0 = <&pinmux_uart0>;
+    pinctrl-names = "default";
+    dmas = <&hdma 0 8>, <&hdma 1 9>;
+    dma-names = "rx", "tx";
+    current-speed = <921600>;
+    status = "okay";
+};
+
+&hdma {
+    status = "okay";
+};
+
+&esc0 {
+    pinctrl-0 = <&pinmux_esc0>;
     pinctrl-names = "default";
     status = "okay";
 };
 
 &gpiof {
-    status = "okay";
     pinctrl-0 = <&pinmux_esc_gpio>;
     pinctrl-names = "default";
-};
-
-&esc0 {
     status = "okay";
 };
-
-&uart0 {
-    current-speed = <921600>;
-    status = "okay";
-};
-
-&hdma { status = "okay"; };
