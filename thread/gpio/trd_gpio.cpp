@@ -15,13 +15,12 @@
 
 #include "thread.hpp"
 #include "Init_entry.hpp"
-#include "log.hpp"
 #include "output.hpp"
 #include "timer.hpp"
 
 namespace thread::output {
 
-static Thread<1024> thread_{};
+static Thread<512> thread_{};
 
 static Output heart_beat{};
 
@@ -40,8 +39,6 @@ static TaskResult Task(void* context)
 
     timer.Clock(([]() {
         heart_beat.Toggle();
-
-        DUST_LOG_INF("gpio: heartbeat toggle");
     }));
 
     return TaskResult::Continue;
