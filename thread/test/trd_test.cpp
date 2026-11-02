@@ -34,19 +34,20 @@ static ecat::EthercatSlave slave_ {};
 
 static atomic_t s_rx_callbacks = ATOMIC_INIT(0);	// 接收回调累计次数，包含长度异常帧
 static uint32_t s_reported_rx_callbacks = 0;		// 上次报告时的回调计数
-static bool s_rx_inactive_reported = false;		// 停收只报告一次，恢复后重新允许报告
-static atomic_t s_last_rx_ms = ATOMIC_INIT(0);		// 最近一次进入接收回调的时间
-static atomic_t s_last_rx_length = ATOMIC_INIT(0);	// 最近一次回调的数据长度
-static atomic_t s_rx_bad_length = ATOMIC_INIT(0);	// 长度不符的回调累计次数
 static int64_t s_next_rx_report = 0;				// 线程每秒输出一次回调计数
 
-static uint32_t s_input_counter = 0;	// 从站的输入计数器，每帧递增
+static uint32_t s_input_counter = 0;				// 从站的输入计数器，每帧递增
+
+static atomic_t s_rx_bytes = ATOMIC_INIT(0);		// 接收字节累计
+static atomic_t s_tx_bytes = ATOMIC_INIT(0);		// 发送字节累计
+static uint32_t s_reported_tx = 0;					// 上次报告时的发送帧数
+static uint32_t s_reported_rx_bytes = 0;			// 上次报告时的接收字节
+static uint32_t s_reported_tx_bytes = 0;			// 上次报告时的发送字节
 
 /**
  * @brief 主站数据到达（PDI ISR 上下文）
  *
- * 只做拷贝与打点，不阻塞、不分配。
- * 日志分两条：DUST_LOG 队列帧只有 4 个整数槽，超过会丢字段。
+ * 只做拷贝与计数，不阻塞、不分配。
  * DBG 流 ecat_rx 供 shell `log on ecat_rx` 按需观察。
  *
  * @param context 未使用
@@ -57,11 +58,9 @@ static void on_master_data(void* context, const uint8_t* data, uint16_t length)
 {
 	(void)context;
 	atomic_inc(&s_rx_callbacks);
-	atomic_set(&s_last_rx_ms, static_cast<atomic_val_t>(k_uptime_get_32()));
-	atomic_set(&s_last_rx_length, static_cast<atomic_val_t>(length));
+	atomic_add(&s_rx_bytes, length);
 
 	if (length != sizeof(PdoOutputs)) {
-		atomic_inc(&s_rx_bad_length);
 		DUST_LOG_WRN("ecat rx %u bytes, expect %u", static_cast<unsigned>(length), static_cast<unsigned>(sizeof(PdoOutputs)));
 		return;
 	}
@@ -69,9 +68,6 @@ static void on_master_data(void* context, const uint8_t* data, uint16_t length)
 	PdoOutputs value {};
 
 	std::memcpy(&value, data, sizeof(value));
-
-	// DUST_LOG_INF("ecat rx[0..3]: %u %u %u %u", value.counter[0], value.counter[1], value.counter[2], value.counter[3]);
-	// DUST_LOG_INF("ecat rx[4..7]: %u %u %u %u", value.counter[4], value.counter[5], value.counter[6], value.counter[7]);
 
 	DUST_LOG_DBG("ecat_rx", "rx: %u %u %u %u", value.counter[0], value.counter[1], value.counter[2], value.counter[3]);
 }
@@ -99,6 +95,8 @@ static void fill_inputs(void* context, uint8_t* data, uint16_t length)
 
 	++s_input_counter;
 
+	atomic_add(&s_tx_bytes, length);
+
 	std::memcpy(data, &value, sizeof(value));
 }
 
@@ -118,25 +116,30 @@ static TaskResult Task(void* context)
 	if (now >= s_next_rx_report)
 	{
 		s_next_rx_report = now + 1000;
+
 		const unsigned key = irq_lock();
 		const uint32_t callbacks = static_cast<uint32_t>(atomic_get(&s_rx_callbacks));
-		const uint32_t age = (callbacks != 0) ? k_uptime_get_32() - static_cast<uint32_t>(atomic_get(&s_last_rx_ms)) : 0;
-		const uint32_t length = static_cast<uint32_t>(atomic_get(&s_last_rx_length));
-		const uint32_t bad_length = static_cast<uint32_t>(atomic_get(&s_rx_bad_length));
+		const uint32_t rx_bytes = static_cast<uint32_t>(atomic_get(&s_rx_bytes));
+		const uint32_t tx_bytes = static_cast<uint32_t>(atomic_get(&s_tx_bytes));
 		const ::AlState state = slave_.State();
+		const uint32_t tx_frames = s_input_counter;
 
 		irq_unlock(key);
 
-		if (state == ::AlState::Op && callbacks != s_reported_rx_callbacks) {
-			s_rx_inactive_reported = false;
-			DUST_LOG_INF("ecat app: t=%u rx_callbacks=%u", static_cast<unsigned>(k_uptime_get_32()), static_cast<unsigned>(callbacks));
-		} else if ((callbacks != 0 || state == ::AlState::Op) && !s_rx_inactive_reported) {
-			DUST_LOG_ERR("ecat app: t=%u state=0x%02x callbacks=%u age_ms=%u", static_cast<unsigned>(k_uptime_get_32()), static_cast<unsigned>(state), static_cast<unsigned>(callbacks), static_cast<unsigned>(age));
-			DUST_LOG_ERR("ecat app rx detail: len=%u expected=%u bad_length=%u", static_cast<unsigned>(length), static_cast<unsigned>(sizeof(PdoOutputs)), static_cast<unsigned>(bad_length));
-			s_rx_inactive_reported = true;
+		if (state == ::AlState::Op)
+		{
+			const uint32_t rx_fps = callbacks - s_reported_rx_callbacks;
+			const uint32_t tx_fps = tx_frames - s_reported_tx;
+			const uint32_t rx_bps = rx_bytes - s_reported_rx_bytes;
+			const uint32_t tx_bps = tx_bytes - s_reported_tx_bytes;
+
+			DUST_LOG_INF("ecat rate: rx=%u fps %u B/s, tx=%u fps %u B/s", static_cast<unsigned>(rx_fps), static_cast<unsigned>(rx_bps), static_cast<unsigned>(tx_fps), static_cast<unsigned>(tx_bps));
 		}
 
 		s_reported_rx_callbacks = callbacks;
+		s_reported_tx = tx_frames;
+		s_reported_rx_bytes = rx_bytes;
+		s_reported_tx_bytes = tx_bytes;
 	}
 
 	return TaskResult::Continue;
@@ -152,22 +155,22 @@ static void EcatCommand(uint8_t* args)
 	uint8_t* rest = shell::NextToken(args, command);
 
 	if (std::strcmp(command, "fault") != 0) {
-		shell::Log::SendCommandLine("usage: ecat fault [clear]");
+		DUST_LOG_RAW("usage: ecat fault [clear]");
 		return;
 	}
 
-	if (*rest == '\0') 
+	if (*rest == '\0')
 	{
-		shell::Log::SendCommandLine(slave_.RequestFaultReport() ? "ecat: saved fault report requested" : "ecat: no saved fault");
-	} 
-	else if (std::strcmp(reinterpret_cast<const char*>(rest), "clear") == 0) 
+		DUST_LOG_RAW("%s", slave_.RequestFaultReport() ? "ecat: saved fault report requested" : "ecat: no saved fault");
+	}
+	else if (std::strcmp(reinterpret_cast<const char*>(rest), "clear") == 0)
 	{
 		slave_.ClearFaultReport();
-		shell::Log::SendCommandLine("ecat: fault clear requested");
-	} 
-	else 
+		DUST_LOG_RAW("ecat: fault clear requested");
+	}
+	else
 	{
-		shell::Log::SendCommandLine("usage: ecat fault [clear]");
+		DUST_LOG_RAW("usage: ecat fault [clear]");
 	}
 }
 
