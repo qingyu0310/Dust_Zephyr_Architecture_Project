@@ -2,106 +2,56 @@
  * @file trd_test.cpp
  * @author qingyu
  * @brief 测试线程 —— EtherCAT 从站
- * @version 4.3
- * @date 2026-10-31
+ * @version 5.0
+ * @date 2026-11-02
  */
 
 #include <zephyr/kernel.h>
-#include <zephyr/sys/atomic.h>
 
 #include <cstring>
 
 #include "Init_entry.hpp"
 #include "ecat_hal_hpm.hpp"
-#include "ecat_phy.hpp"
 #include "ethercat.hpp"
-#include "rtl8201f/phy_rtl8201f.hpp"
+#include "jl1111/phy_jl1111.hpp"
 #include "log.hpp"
 #include "shell_cmd.hpp"
 #include "token.hpp"
-#include "spec/ecat_pdo_layout.hpp"
 #include "thread.hpp"
 
 #pragma message "Compiling Thread/Test"
 
 namespace thread::test {
 
-using ecat::PdoInputs;
-using ecat::PdoOutputs;
+/**
+ * @brief 主站写给从站的过程数据（RxPDO）
+ */
+struct PdoOutputs
+{
+	uint32_t counter[64];	// 输出计数器
+};
+
+/**
+ * @brief 从站回给主站的过程数据（TxPDO）
+ */
+struct PdoInputs
+{
+	uint32_t counter[64];	// 输入计数器
+};
+
+using Slave = ecat::EthercatSlave<PdoOutputs, PdoInputs>;
+
+static_assert(sizeof(PdoOutputs) == Slave::Profile::kRxBytes, "RxPDO 字节数与 Profile 不一致");
+static_assert(sizeof(PdoInputs)  == Slave::Profile::kTxBytes, "TxPDO 字节数与 Profile 不一致");
 
 static Thread<4096> thread_ {};
-static ecat::EthercatSlave slave_ {};
 
-static atomic_t s_rx_callbacks = ATOMIC_INIT(0);	// 接收回调累计次数，包含长度异常帧
-static uint32_t s_reported_rx_callbacks = 0;		// 上次报告时的回调计数
-static int64_t s_next_rx_report = 0;				// 线程每秒输出一次回调计数
+static Slave slave_ {};
 
-static uint32_t s_input_counter = 0;				// 从站的输入计数器，每帧递增
-
-static atomic_t s_rx_bytes = ATOMIC_INIT(0);		// 接收字节累计
-static atomic_t s_tx_bytes = ATOMIC_INIT(0);		// 发送字节累计
-static uint32_t s_reported_tx = 0;					// 上次报告时的发送帧数
-static uint32_t s_reported_rx_bytes = 0;			// 上次报告时的接收字节
-static uint32_t s_reported_tx_bytes = 0;			// 上次报告时的发送字节
+static uint32_t s_input_counter = 0;		// 从站的输入计数器，每帧递增
 
 /**
- * @brief 主站数据到达（PDI ISR 上下文）
- *
- * 只做拷贝与计数，不阻塞、不分配。
- * DBG 流 ecat_rx 供 shell `log on ecat_rx` 按需观察。
- *
- * @param context 未使用
- * @param data    主站发来的字节
- * @param length  字节数
- */
-static void on_master_data(void* context, const uint8_t* data, uint16_t length)
-{
-	(void)context;
-	atomic_inc(&s_rx_callbacks);
-	atomic_add(&s_rx_bytes, length);
-
-	if (length != sizeof(PdoOutputs)) {
-		DUST_LOG_WRN("ecat rx %u bytes, expect %u", static_cast<unsigned>(length), static_cast<unsigned>(sizeof(PdoOutputs)));
-		return;
-	}
-
-	PdoOutputs value {};
-
-	std::memcpy(&value, data, sizeof(value));
-
-	DUST_LOG_DBG("ecat_rx", "rx: %u %u %u %u", value.counter[0], value.counter[1], value.counter[2], value.counter[3]);
-}
-
-/**
- * @brief 填充待发数据（PDI ISR 上下文）
- * @param context 未使用
- * @param data    目标缓冲
- * @param length  字节数
- */
-static void fill_inputs(void* context, uint8_t* data, uint16_t length)
-{
-	(void)context;
-
-	if (length != sizeof(PdoInputs)) {
-		DUST_LOG_WRN("ecat tx %u bytes, expect %u", static_cast<unsigned>(length), static_cast<unsigned>(sizeof(PdoInputs)));
-		return;
-	}
-
-	PdoInputs value {};
-
-	for (uint8_t i = 0; i < ecat::kProcessInputWords; ++i) {
-		value.counter[i] = s_input_counter;
-	}
-
-	++s_input_counter;
-
-	atomic_add(&s_tx_bytes, length);
-
-	std::memcpy(data, &value, sizeof(value));
-}
-
-/**
- * @brief 任务单拍：推一拍协议栈
+ * @brief 任务单拍：写入待发数据、推一拍协议栈
  * @param context 未使用
  * @return Continue=正常
  */
@@ -109,38 +59,16 @@ static TaskResult Task(void* context)
 {
 	(void)context;
 
+	PdoInputs inputs {};
+
+	for (uint8_t i = 0; i < (sizeof(PdoInputs) / sizeof(uint32_t)); ++i) {
+		inputs.counter[i] = s_input_counter;
+	}
+
+	slave_.SetInputs(inputs);
 	slave_.Poll();
 
-	const int64_t now = k_uptime_get();
-
-	if (now >= s_next_rx_report)
-	{
-		s_next_rx_report = now + 1000;
-
-		const unsigned key = irq_lock();
-		const uint32_t callbacks = static_cast<uint32_t>(atomic_get(&s_rx_callbacks));
-		const uint32_t rx_bytes = static_cast<uint32_t>(atomic_get(&s_rx_bytes));
-		const uint32_t tx_bytes = static_cast<uint32_t>(atomic_get(&s_tx_bytes));
-		const ::AlState state = slave_.State();
-		const uint32_t tx_frames = s_input_counter;
-
-		irq_unlock(key);
-
-		if (state == ::AlState::Op)
-		{
-			const uint32_t rx_fps = callbacks - s_reported_rx_callbacks;
-			const uint32_t tx_fps = tx_frames - s_reported_tx;
-			const uint32_t rx_bps = rx_bytes - s_reported_rx_bytes;
-			const uint32_t tx_bps = tx_bytes - s_reported_tx_bytes;
-
-			DUST_LOG_INF("ecat rate: rx=%u fps %u B/s, tx=%u fps %u B/s", static_cast<unsigned>(rx_fps), static_cast<unsigned>(rx_bps), static_cast<unsigned>(tx_fps), static_cast<unsigned>(tx_bps));
-		}
-
-		s_reported_rx_callbacks = callbacks;
-		s_reported_tx = tx_frames;
-		s_reported_rx_bytes = rx_bytes;
-		s_reported_tx_bytes = tx_bytes;
-	}
+	++s_input_counter;
 
 	return TaskResult::Continue;
 }
@@ -178,20 +106,18 @@ REGISTER_SHELL_CMD("ecat", "ecat fault [clear]", EcatCommand);
 
 bool thread_init()
 {
-	static ::ecat::EcatEscHpm esc {};
-	static ::PhyRtl8201f  phy0 {};    // Port0：RTL8201F（MDIO 1）
+	static ecat::EcatEscHpm esc {};
+	static ::PhyJl1111 phy0 {};
+	static ::PhyJl1111 phy1 {};
 
-	static ::EcatPhy* const phys[] = { &phy0, nullptr };    // Port1 未焊接
+	static ::EcatPhy* const phys[] = { &phy0, &phy1 };    // Port0/Port1 各挂一颗 JL1111
 
-	if (!slave_.Init(esc, phys)) {
+	// trd 持有 ESC/PHY 实体，按真实端口下标排列后交给门面。
+	if (!slave_.Init(&esc, phys)) {
 		DUST_LOG_ERR("ecat: init failed");
 		return false;
 	}
 
-	slave_.SetOutputSink(on_master_data, nullptr);
-	slave_.SetInputSource(fill_inputs,  nullptr);
-
-	DUST_LOG_INF("ecat: ready rx=%u tx=%u", static_cast<unsigned>(slave_.Layout().rx_size), static_cast<unsigned>(slave_.Layout().tx_size));
 	return true;
 }
 
