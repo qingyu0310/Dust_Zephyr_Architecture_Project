@@ -2,8 +2,8 @@
  * @file trd_test.cpp
  * @author qingyu
  * @brief 测试线程 —— EtherCAT 从站
- * @version 5.0
- * @date 2026-11-02
+ * @version 5.1
+ * @date 2026-11-07
  */
 
 #include <zephyr/kernel.h>
@@ -48,6 +48,8 @@ static Thread<4096> thread_ {};
 
 static Slave slave_ {};
 
+static ecat::EcatEscHpm esc_ {};		// ESC 实体，Task 里读诊断探针
+
 static uint32_t s_input_counter = 0;		// 从站的输入计数器，每帧递增
 
 /**
@@ -69,6 +71,38 @@ static TaskResult Task(void* context)
 	slave_.Poll();
 
 	++s_input_counter;
+
+	// 每秒统计一次收发帧率：SM2=主站写来的帧，SM3=主站读走的帧
+	static int64_t  s_next_report_ms = 0;
+	static uint32_t s_last_sm2       = 0;
+	static uint32_t s_last_sm3       = 0;
+
+	const int64_t now = k_uptime_get();
+
+	if (now >= s_next_report_ms)
+	{
+		const uint32_t sm2 = slave_.Sm2Count();
+		const uint32_t sm3 = slave_.Sm3Count();
+
+		uint32_t pdi_total = 0;
+		uint32_t pdi_consume = 0;
+		uint32_t pdi_publish = 0;
+
+		slave_.ConsumePdiTiming(&pdi_total, &pdi_consume, &pdi_publish);
+
+		DUST_LOG_INF("ecat speed: rx=%u/s tx=%u/s gap_max=%ums", static_cast<unsigned>(sm2 - s_last_sm2), static_cast<unsigned>(sm3 - s_last_sm3), static_cast<unsigned>(slave_.ConsumeMaxSm2Gap()));
+		DUST_LOG_INF("ecat isr: total=%uus consume=%uus publish=%uus", static_cast<unsigned>(k_cyc_to_us_floor32(pdi_total)), static_cast<unsigned>(k_cyc_to_us_floor32(pdi_consume)), static_cast<unsigned>(k_cyc_to_us_floor32(pdi_publish)));
+
+		uint32_t esc_rd = 0;
+		uint32_t esc_wr = 0;
+
+		esc_.ProbeCycles(&esc_rd, &esc_wr);
+		DUST_LOG_INF("ecat esc: read=%ucyc write=%ucyc", static_cast<unsigned>(esc_rd), static_cast<unsigned>(esc_wr));
+
+		s_last_sm2       = sm2;
+		s_last_sm3       = sm3;
+		s_next_report_ms = now + 1000;
+	}
 
 	return TaskResult::Continue;
 }
@@ -106,14 +140,13 @@ REGISTER_SHELL_CMD("ecat", "ecat fault [clear]", EcatCommand);
 
 bool thread_init()
 {
-	static ecat::EcatEscHpm esc {};
 	static ::PhyJl1111 phy0 {};
 	static ::PhyJl1111 phy1 {};
 
 	static ::EcatPhy* const phys[] = { &phy0, &phy1 };    // Port0/Port1 各挂一颗 JL1111
 
 	// trd 持有 ESC/PHY 实体，按真实端口下标排列后交给门面。
-	if (!slave_.Init(&esc, phys)) {
+	if (!slave_.Init(&esc_, phys)) {
 		DUST_LOG_ERR("ecat: init failed");
 		return false;
 	}
