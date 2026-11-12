@@ -118,16 +118,11 @@ project(my_project)
 # ============================================================================
 
 if(CONFIG_${CONFIG_SYM})
-  	add_subdirectory(${FW_ROOT}/drivers   ${CMAKE_CURRENT_BINARY_DIR}/framework/drivers)
-  	add_subdirectory(${FW_ROOT}/algorithm ${CMAKE_CURRENT_BINARY_DIR}/framework/algorithm)
-  	add_subdirectory(${FW_ROOT}/modules   ${CMAKE_CURRENT_BINARY_DIR}/framework/modules)
-  	add_subdirectory(${FW_ROOT}/topic     ${CMAKE_CURRENT_BINARY_DIR}/framework/topic)
-  	add_subdirectory(${FW_ROOT}/cmd       ${CMAKE_CURRENT_BINARY_DIR}/framework/cmd)
-  	add_subdirectory(${FW_ROOT}/shell     ${CMAKE_CURRENT_BINARY_DIR}/framework/shell)
-  	add_subdirectory(${FW_ROOT}/init      ${CMAKE_CURRENT_BINARY_DIR}/framework/init)
-
-  	add_subdirectory(${MIDLAYER_ROOT}     ${CMAKE_CURRENT_BINARY_DIR}/midlayer)
-  	add_subdirectory(${BOTTOM_ROOT}/drivers ${CMAKE_CURRENT_BINARY_DIR}/bottom/drivers)
+  	# 三层各自自包含：每层根 CMakeLists 负责自己的子目录，本文件只管顺序
+  	# binary 目录名不能叫 zephyr（Zephyr 自己占用 build/zephyr）
+  	add_subdirectory(${BOTTOM_ROOT}   ${CMAKE_CURRENT_BINARY_DIR}/bottom)
+  	add_subdirectory(${MIDLAYER_ROOT} ${CMAKE_CURRENT_BINARY_DIR}/midlayer)
+  	add_subdirectory(${FW_ROOT}       ${CMAKE_CURRENT_BINARY_DIR}/framework)
 endif()
 
 # 业务源码与系统入口（main() 由架构层 init 提供，业务项目不再有 src/）
