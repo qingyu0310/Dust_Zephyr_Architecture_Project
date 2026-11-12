@@ -6,13 +6,15 @@ cmake_minimum_required(VERSION 3.20.0)
 #
 # ============================================================================
 
-# 当前项目（位置 A：zephyr_user/project）
-set(PROJECT_ROOT 	"${CMAKE_CURRENT_SOURCE_DIR}/..")              # zephyr_user/
+# 当前项目（位置 A：zephyr_user/framework/project）
+set(PROJECT_ROOT 	"${CMAKE_CURRENT_SOURCE_DIR}/..")              # zephyr_user/framework/
 # 子树（zephyr_user）
-set(ZEPHYR_USER_DIR "${CMAKE_CURRENT_SOURCE_DIR}/..")
+set(ZEPHYR_USER_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../..")           # zephyr_user/
 set(FW_ROOT         "${ZEPHYR_USER_DIR}/framework")
+set(MIDLAYER_ROOT   "${ZEPHYR_USER_DIR}/midlayer")
+set(ZEPHYR_ROOT     "${ZEPHYR_USER_DIR}/zephyr")
 # 用户工作区内部目录
-set(APP_THREAD      "${CMAKE_CURRENT_SOURCE_DIR}/thread")          # zephyr_user/project/thread/
+set(APP_THREAD      "${CMAKE_CURRENT_SOURCE_DIR}/thread")          # zephyr_user/framework/project/thread/
 
 # 业务门禁符号
 set(CONFIG_SYM PRJ_MAIN)
@@ -60,18 +62,18 @@ endif()
 if(DEFINED ENV{SDK_GLUE_DIR})
   	set(SDK_GLUE_DIR "$ENV{SDK_GLUE_DIR}")
 else()
-  	set(SDK_GLUE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../Zephyr_HPMicro/sdk_glue")
+  	set(SDK_GLUE_DIR "${ZEPHYR_USER_DIR}/../Zephyr_HPMicro/sdk_glue")
 endif()
 if(DEFINED ENV{SDK_GLUE_USER_DIR})
   	set(SDK_GLUE_USER_DIR "$ENV{SDK_GLUE_USER_DIR}")
 else()
-  	set(SDK_GLUE_USER_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../Zephyr_HPMicro/sdk_glue_user")
+  	set(SDK_GLUE_USER_DIR "${ZEPHYR_USER_DIR}/../Zephyr_HPMicro/sdk_glue_user")
 endif()
 
-# BOARD_ROOT / SOC_ROOT / DTS_ROOT 指向 zephyr_user
-list(APPEND BOARD_ROOT "${ZEPHYR_USER_DIR}")
-list(APPEND DTS_ROOT   "${ZEPHYR_USER_DIR}")
-list(APPEND DTS_ROOT   "${ZEPHYR_USER_DIR}/dts")
+# BOARD_ROOT / SOC_ROOT / DTS_ROOT 指向 zephyr/（底层）
+list(APPEND BOARD_ROOT "${ZEPHYR_ROOT}")
+list(APPEND DTS_ROOT   "${ZEPHYR_ROOT}")
+list(APPEND DTS_ROOT   "${ZEPHYR_ROOT}/dts")
 if(EXISTS "${SDK_GLUE_DIR}")
   	# 用户层与官方并存：同名板卡在用户层加 u 前缀（如 uhpm6e00evk），两边都能构建
   	list(APPEND BOARD_ROOT "${SDK_GLUE_USER_DIR}")
@@ -87,8 +89,9 @@ endif()
 # 外来模块加载（module.yml 自动加载 Kconfig；sdk_glue 仅存在时加入——st 板卡无 HPM 树）
 set(ZEPHYR_EXTRA_MODULES
   "${FW_ROOT}"
-  "${ZEPHYR_USER_DIR}/platform/cmsis"
-  "${ZEPHYR_USER_DIR}/drivers"
+  "${MIDLAYER_ROOT}"
+  "${ZEPHYR_ROOT}/platform/cmsis"
+  "${ZEPHYR_ROOT}/drivers"
 )
 if(EXISTS "${SDK_GLUE_DIR}")
   list(PREPEND ZEPHYR_EXTRA_MODULES "${SDK_GLUE_DIR}")
@@ -122,7 +125,8 @@ if(CONFIG_${CONFIG_SYM})
   	add_subdirectory(${FW_ROOT}/shell     ${CMAKE_CURRENT_BINARY_DIR}/framework/shell)
   	add_subdirectory(${FW_ROOT}/init      ${CMAKE_CURRENT_BINARY_DIR}/framework/init)
 
-  	add_subdirectory(${ZEPHYR_USER_DIR}/drivers ${CMAKE_CURRENT_BINARY_DIR}/zephyr_user/drivers)
+  	add_subdirectory(${MIDLAYER_ROOT}     ${CMAKE_CURRENT_BINARY_DIR}/midlayer)
+  	add_subdirectory(${ZEPHYR_ROOT}/drivers ${CMAKE_CURRENT_BINARY_DIR}/zephyr/drivers)
 endif()
 
 # 业务源码与系统入口（main() 由架构层 init 提供，业务项目不再有 src/）
