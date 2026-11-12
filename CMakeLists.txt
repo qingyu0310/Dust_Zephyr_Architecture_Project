@@ -12,7 +12,7 @@ set(PROJECT_ROOT 	"${CMAKE_CURRENT_SOURCE_DIR}/..")              # zephyr_user/f
 set(ZEPHYR_USER_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../..")           # zephyr_user/
 set(FW_ROOT         "${ZEPHYR_USER_DIR}/framework")
 set(MIDLAYER_ROOT   "${ZEPHYR_USER_DIR}/midlayer")
-set(ZEPHYR_ROOT     "${ZEPHYR_USER_DIR}/zephyr")
+set(BOTTOM_ROOT     "${ZEPHYR_USER_DIR}/zephyr")                    # 底层（不可用 ZEPHYR_ROOT，与 CMake 保留变量冲突）
 # 用户工作区内部目录
 set(APP_THREAD      "${CMAKE_CURRENT_SOURCE_DIR}/thread")          # zephyr_user/framework/project/thread/
 
@@ -59,21 +59,22 @@ endif()
 # ============================================================================
 
 # SDK glue（HPM 平台可选）
+# Zephyr_HPMicro 与 Zephyr 平级（都在 E:\ 根），故从 zephyr_user 上两级
 if(DEFINED ENV{SDK_GLUE_DIR})
   	set(SDK_GLUE_DIR "$ENV{SDK_GLUE_DIR}")
 else()
-  	set(SDK_GLUE_DIR "${ZEPHYR_USER_DIR}/../Zephyr_HPMicro/sdk_glue")
+  	set(SDK_GLUE_DIR "${ZEPHYR_USER_DIR}/../../Zephyr_HPMicro/sdk_glue")
 endif()
 if(DEFINED ENV{SDK_GLUE_USER_DIR})
   	set(SDK_GLUE_USER_DIR "$ENV{SDK_GLUE_USER_DIR}")
 else()
-  	set(SDK_GLUE_USER_DIR "${ZEPHYR_USER_DIR}/../Zephyr_HPMicro/sdk_glue_user")
+  	set(SDK_GLUE_USER_DIR "${ZEPHYR_USER_DIR}/../../Zephyr_HPMicro/sdk_glue_user")
 endif()
 
 # BOARD_ROOT / SOC_ROOT / DTS_ROOT 指向 zephyr/（底层）
-list(APPEND BOARD_ROOT "${ZEPHYR_ROOT}")
-list(APPEND DTS_ROOT   "${ZEPHYR_ROOT}")
-list(APPEND DTS_ROOT   "${ZEPHYR_ROOT}/dts")
+list(APPEND BOARD_ROOT "${BOTTOM_ROOT}")
+list(APPEND DTS_ROOT   "${BOTTOM_ROOT}")
+list(APPEND DTS_ROOT   "${BOTTOM_ROOT}/dts")
 if(EXISTS "${SDK_GLUE_DIR}")
   	# 用户层与官方并存：同名板卡在用户层加 u 前缀（如 uhpm6e00evk），两边都能构建
   	list(APPEND BOARD_ROOT "${SDK_GLUE_USER_DIR}")
@@ -90,8 +91,8 @@ endif()
 set(ZEPHYR_EXTRA_MODULES
   "${FW_ROOT}"
   "${MIDLAYER_ROOT}"
-  "${ZEPHYR_ROOT}/platform/cmsis"
-  "${ZEPHYR_ROOT}/drivers"
+  "${BOTTOM_ROOT}/platform/cmsis"
+  "${BOTTOM_ROOT}/drivers"
 )
 if(EXISTS "${SDK_GLUE_DIR}")
   list(PREPEND ZEPHYR_EXTRA_MODULES "${SDK_GLUE_DIR}")
@@ -126,7 +127,7 @@ if(CONFIG_${CONFIG_SYM})
   	add_subdirectory(${FW_ROOT}/init      ${CMAKE_CURRENT_BINARY_DIR}/framework/init)
 
   	add_subdirectory(${MIDLAYER_ROOT}     ${CMAKE_CURRENT_BINARY_DIR}/midlayer)
-  	add_subdirectory(${ZEPHYR_ROOT}/drivers ${CMAKE_CURRENT_BINARY_DIR}/zephyr/drivers)
+  	add_subdirectory(${BOTTOM_ROOT}/drivers ${CMAKE_CURRENT_BINARY_DIR}/bottom/drivers)
 endif()
 
 # 业务源码与系统入口（main() 由架构层 init 提供，业务项目不再有 src/）
